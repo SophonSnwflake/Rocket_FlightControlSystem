@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(tsl LANGUAGES C CXX)
+project(rsl LANGUAGES C CXX)
 
 add_library(${PROJECT_NAME} STATIC)
 
@@ -9,25 +9,25 @@ set(CMSISCORE "${CMAKE_SOURCE_DIR}/CubeMX_BSP/Drivers/CMSIS")
 add_subdirectory(Dependence/CMSIS-DSP)
 add_subdirectory(Dependence/eigen)
 
-file(GLOB_RECURSE TSL_ALGORITHM_SOURCES
+file(GLOB_RECURSE RSL_ALGORITHM_SOURCES
     "Algorithm/src/*.c"
     "Algorithm/src/*.cpp"
 )
 
-file(GLOB_RECURSE TSL_DEVICE_SOURCES
+file(GLOB_RECURSE RSL_DEVICE_SOURCES
     "Device/*.c"
     "Device/*.cpp"
 )
 
-file(GLOB_RECURSE TSL_DRIVER_SOURCES
+file(GLOB_RECURSE RSL_DRIVER_SOURCES
     "Driver/src/*.c"
     "Driver/src/*.cpp"
 )
 
 target_sources(${PROJECT_NAME} PRIVATE
-    ${TSL_ALGORITHM_SOURCES}
-    ${TSL_DEVICE_SOURCES}
-    ${TSL_DRIVER_SOURCES}
+    ${RSL_ALGORITHM_SOURCES}
+    ${RSL_DEVICE_SOURCES}
+    ${RSL_DRIVER_SOURCES}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC

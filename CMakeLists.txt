@@ -40,31 +40,9 @@ add_executable(${CMAKE_PROJECT_NAME})
 # Add STM32CubeMX generated sources
 add_subdirectory(CubeMX_BSP/cmake/stm32cubemx)
 
-# TSL: TemporarySTM32Library (algorithms + device drivers)
-add_subdirectory(TSL)
+# RSL: RocketStandardLibrary (algorithms + device drivers)
+add_subdirectory(RSL)
 
-# TemporarySTM32Library: Algorithm + Device modules
-file(GLOB_RECURSE TEMP_LIB_SRC
-    TemporarySTM32Library/Algorithm/src/*.c
-    TemporarySTM32Library/Algorithm/src/*.cpp
-    TemporarySTM32Library/Device/src/*.c
-    TemporarySTM32Library/Device/src/*.cpp
-)
-if(TEMP_LIB_SRC)
-    add_library(TemporarySTM32Library STATIC ${TEMP_LIB_SRC})
-    target_include_directories(TemporarySTM32Library PUBLIC
-        TemporarySTM32Library/Algorithm/inc
-        TemporarySTM32Library/Device/inc
-    )
-    target_link_libraries(TemporarySTM32Library PUBLIC stm32cubemx)
-else()
-    add_library(TemporarySTM32Library INTERFACE)
-    target_include_directories(TemporarySTM32Library INTERFACE
-        TemporarySTM32Library/Algorithm/inc
-        TemporarySTM32Library/Device/inc
-    )
-    target_link_libraries(TemporarySTM32Library INTERFACE stm32cubemx)
-endif()
 
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
@@ -111,6 +89,5 @@ list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
-    TemporarySTM32Library
-    tsl
+    rsl
 )
