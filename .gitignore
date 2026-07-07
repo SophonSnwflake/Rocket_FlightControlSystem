@@ -1,0 +1,25 @@
+# Build output
+build/
+
+# STM32CubeMX
+*.mxproject
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Toolchain
+*.o
+*.d
+*.a
+*.elf
+*.bin
+*.hex
+*.map
+*.lst

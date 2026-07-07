@@ -1,0 +1,6 @@
+[submodule "TSL/Dependence/eigen"]
+	path = TSL/Dependence/eigen
+	url = https://gitlab.com/libeigen/eigen.git
+[submodule "TSL/Dependence/CMSIS-DSP"]
+	path = TSL/Dependence/CMSIS-DSP
+	url = https://github.com/ARM-software/CMSIS-DSP.git
