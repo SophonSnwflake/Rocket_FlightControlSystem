@@ -51,8 +51,8 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add sources to executable
 file(GLOB_RECURSE USER_SRC
-    LogicCode/*.c
-    LogicCode/*.cpp
+    Rocket/*.c
+    Rocket/*.cpp
     Task/*.c
     Task/*.cpp
 )
@@ -62,7 +62,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    LogicCode/inc
+    Rocket/inc
     Task
     Task/inc
 )

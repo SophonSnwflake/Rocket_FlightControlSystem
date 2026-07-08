@@ -1,6 +1,7 @@
 #MicroXplorer Configuration settings - do not modify
 ADC1.Channel-0\#ChannelRegularConversion=ADC_CHANNEL_1
-ADC1.IPParameters=Rank-0\#ChannelRegularConversion,Channel-0\#ChannelRegularConversion,SamplingTime-0\#ChannelRegularConversion,NbrOfConversionFlag,master
+ADC1.ContinuousConvMode=DISABLE
+ADC1.IPParameters=Rank-0\#ChannelRegularConversion,Channel-0\#ChannelRegularConversion,SamplingTime-0\#ChannelRegularConversion,NbrOfConversionFlag,master,ContinuousConvMode
 ADC1.NbrOfConversionFlag=1
 ADC1.Rank-0\#ChannelRegularConversion=1
 ADC1.SamplingTime-0\#ChannelRegularConversion=ADC_SAMPLETIME_3CYCLES
@@ -22,7 +23,7 @@ Dma.USART1_RX.0.Priority=DMA_PRIORITY_LOW
 Dma.USART1_RX.0.RequestParameters=Instance,Direction,PeriphInc,MemInc,PeriphDataAlignment,MemDataAlignment,Mode,Priority,FIFOMode
 FREERTOS.FootprintOK=true
 FREERTOS.IPParameters=Tasks01,FootprintOK
-FREERTOS.Tasks01=IMU,24,256,StartIMUTask,As weak,NULL,Dynamic,NULL,NULL
+FREERTOS.Tasks01=Rocket,24,256,rocket_task,As weak,NULL,Dynamic,NULL,NULL
 File.Version=6
 GPIO.groupedBy=
 KeepUserPlacement=false
@@ -170,7 +171,7 @@ ProjectManager.ToolChainLocation=
 ProjectManager.UAScriptAfterPath=
 ProjectManager.UAScriptBeforePath=
 ProjectManager.UnderRoot=false
-ProjectManager.functionlistsort=1-SystemClock_Config-RCC-false-HAL-false,2-MX_GPIO_Init-GPIO-false-HAL-true,3-MX_DMA_Init-DMA-false-HAL-true,4-MX_I2C1_Init-I2C1-false-HAL-true,5-MX_SPI1_Init-SPI1-false-HAL-true,6-MX_USART1_UART_Init-USART1-false-HAL-true,7-MX_TIM2_Init-TIM2-false-HAL-true
+ProjectManager.functionlistsort=1-SystemClock_Config-RCC-false-HAL-false,2-MX_GPIO_Init-GPIO-false-HAL-true,3-MX_DMA_Init-DMA-false-HAL-true,4-MX_I2C1_Init-I2C1-false-HAL-true,5-MX_SPI1_Init-SPI1-false-HAL-true,6-MX_USART1_UART_Init-USART1-false-HAL-true,7-MX_TIM2_Init-TIM2-false-HAL-true,8-MX_ADC1_Init-ADC1-false-HAL-true
 RCC.48MHZClocksFreq_Value=50000000
 RCC.AHBFreq_Value=100000000
 RCC.APB1CLKDivider=RCC_HCLK_DIV2

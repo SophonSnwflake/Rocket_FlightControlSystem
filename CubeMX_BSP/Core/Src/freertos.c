@@ -47,10 +47,10 @@
 /* USER CODE BEGIN Variables */
 
 /* USER CODE END Variables */
-/* Definitions for IMU */
-osThreadId_t IMUHandle;
-const osThreadAttr_t IMU_attributes = {
-  .name = "IMU",
+/* Definitions for Rocket */
+osThreadId_t RocketHandle;
+const osThreadAttr_t Rocket_attributes = {
+  .name = "Rocket",
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
@@ -60,7 +60,7 @@ const osThreadAttr_t IMU_attributes = {
 
 /* USER CODE END FunctionPrototypes */
 
-void StartIMUTask(void *argument);
+void rocket_task(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -91,8 +91,8 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of IMU */
-  IMUHandle = osThreadNew(StartIMUTask, NULL, &IMU_attributes);
+  /* creation of Rocket */
+  RocketHandle = osThreadNew(rocket_task, NULL, &Rocket_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -104,22 +104,22 @@ void MX_FREERTOS_Init(void) {
 
 }
 
-/* USER CODE BEGIN Header_StartIMUTask */
+/* USER CODE BEGIN Header_rocket_task */
 /**
-  * @brief  Function implementing the IMU thread.
+  * @brief  Function implementing the Rocket thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartIMUTask */
-__weak void StartIMUTask(void *argument)
+/* USER CODE END Header_rocket_task */
+__weak void rocket_task(void *argument)
 {
-  /* USER CODE BEGIN StartIMUTask */
+  /* USER CODE BEGIN rocket_task */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END StartIMUTask */
+  /* USER CODE END rocket_task */
 }
 
 /* Private application code --------------------------------------------------*/
