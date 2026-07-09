@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include "main.h"
+#include "std_typedef.h"
 
 
 //typedef
