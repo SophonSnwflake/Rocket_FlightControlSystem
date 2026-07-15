@@ -2,12 +2,19 @@
 
 #include "RSL_common.h"
 #include "alg_general.hpp"
+#include "cmsis_os.h"
+#include "stm32f411xe.h"
+#include "alg_ahrs.hpp"
+#include "def_bmi088.h"
+#include "drv_spi.h"
 
 class IMU
 {
-protected:
+// protected:
+//仅供调试
+public:
     using Vector3f = RSLMath::Vector3f;
-    using Vector33f = RSLMath::Vector33f;   
+    using Matrix33f = RSLMath::Matrix33f;   
     AHRS *m_ahrs; // 指向AHRS对象的指针
     Vector3f m_gyroRawData; // 原始陀螺仪数据
     Vector3f m_accelRawData; // 原始加速度计数据
@@ -15,23 +22,24 @@ protected:
     Vector3f m_gyroData;      // 陀螺仪数据(校准后传入AHRS)
     Vector3f m_accelData;     // 加速度计数据(校准后传入AHRS)
     Vector3f m_magnetData;    // 磁力计数据(校准后传入AHRS)
+    // 常量定义
+    static constexpr fp32 ACCEL_SEN = BMI088_ACCEL_3G_SEN;
+    static constexpr fp32 GYRO_SEN  = BMI088_GYRO_2000_SEN;
 
 public:
     virtual ~IMU() = default;
-    virtual bool init() = 0; // 初始化IMU
-    const Vector3f &solveAttitude();
-    const Vector3f &getGyroData() const;
-    const Vector3f &getAccelData() const;
-    const Vector3f &getMotionAccelBodyFrame() const;
-    const Vector3f &getMotionAccelEarthFrame() const;
-    const fp32 *getQuaternion() const;
-    const Vector3f &getEulerAngle() const;
+    virtual bool init() = 0;
+    Vector3f solveAttitude();
 
-protected:
+// protected:
+//仅供调试
+public:
     IMU(AHRS *ahrs);
-    virtual void readRawData()     = 0;
+    virtual void readRawData() = 0;
     virtual void dataCalibration() = 0;
 };
+
+
 
 class BMI088 : public IMU
 {
@@ -56,30 +64,64 @@ public:
         BMI088_SELF_TEST_GYRO_ERROR         = 0x40,
         BMI088_NO_SENSOR                    = 0xFF
     };
+
     typedef void (*ErrorCallback)(ErrorCode errorCode);
 
-    struct SPIConfig
-    {
+
+    // struct TemperatureCtrlConfig {
+    //     TIM_HandleTypeDef *htim; // 定时器句柄
+    //     uint32_t channel;        // 定时器通道
+    //     Controller *controller;  // 温度控制器接口
+    // };
+    struct SPIConfig{
         SPI_HandleTypeDef *hspi;
         GPIO_TypeDef *csGPIOPort;
         uint16_t csPin;
     };
 
+    struct CalibrationInfo{
+        Vector3f gyroOffset;
+        Vector3f accelOffset;
+        Vector3f magnetOffset;
+        Matrix33f installSpinMatrix;
+    };
+
 protected:
-    SPIConfig m_spiConfig;
-    
+    SPIConfig m_accelSPIConfig;
+    SPIConfig m_gyroSPIConfig;
+    const CalibrationInfo m_calibrationInfo;
+    ErrorCallback m_errorCallback;
+    ErrorCode m_errorCode;
+    fp32 m_temperature;                      // 温度值
+    // TemperatureCtrlConfig *m_tempCtrlConfig; // 温度控制配置
+
 
 public:
-    BMI088(AHRS *ahrs);
+    BMI088(AHRS *ahrs, SPIConfig accelSPIconfig,SPIConfig gyroSPIconfig,CalibrationInfo calibrationInfo, ErrorCallback errorCallback);
     bool init() override;
 
-protected:
+// protected:
+//仅供调试
+public:
+
     void readRawData() override;
     void dataCalibration() override;
-private:
-    bool initAccel();
     bool selfTestAccel();
-    bool initGyro();
     bool selfTestGyro();
+    bool initAccel();
+    bool initGyro();
+    inline void readSingleReg(const SPIConfig &SPIconfig, uint8_t reg, uint8_t &prxData);
+    void readMutipleReg(const SPIConfig &SPIconfig, uint8_t reg, uint8_t *prxData, uint8_t length);
+    void writeSingleReg(const SPIConfig &SPIconfig, uint8_t reg,uint8_t txData);
+    void handleError(ErrorCode errorcode);
+
+
 
 };
+
+
+
+
+
+
+         

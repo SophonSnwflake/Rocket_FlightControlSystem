@@ -1,22 +1,8 @@
-/**
- ******************************************************************************
- * @file           : drv_spi.c
- * @brief          : SPI驱动
- ******************************************************************************
- * @attention
- *
- ******************************************************************************
- */
+#include "drv_spi.h"
 
- #include "drv_spi.h"
+SPI_Controller_t spiController[6] = {0};
 
-SPI_Controller_t s_spi_controller_objects[6] = {0}; // SPI管理对象
-
- /**
- * @brief SPI管理实例数组
- * @note 根据board_config.h中的宏定义配置决定使用的SPI实例
- */
-static SPI_TypeDef *const spiInstances[6] = {
+static SPI_TypeDef *const SPI_Instances[6] ={
 #ifdef USE_SPI1
     SPI1,
 #endif
@@ -33,20 +19,14 @@ static SPI_TypeDef *const spiInstances[6] = {
     SPI5,
 #endif
 #ifdef USE_SPI6
-    SPI6
+    SPI6,
 #endif
 };
 
-/**
- * @brief 获取SPI对象
- * @param hspi SPI句柄
- * @return SPI管理对象指针
- */
 static SPI_Controller_t *SPI_GetManageObject(SPI_HandleTypeDef *hspi){
-    for (int i = 0;i<6;i++)
-    {
-        if(hspi->Instance == spiInstances[i]){
-            return &s_spi_controller_objects[i];
+    for(uint8_t i = 0; i < 6; i++){
+        if(SPI_Instances[i] == hspi->Instance){
+            return &spiController[i];
         }
     }
     return NULL;
@@ -64,7 +44,31 @@ void SPI_SwitchCallBackFunction(SPI_HandleTypeDef *hspi, SPI_Callback callback){
     SPI_Controller_t *spi_controller = SPI_GetManageObject(hspi);
     if(spi_controller != NULL){
         spi_controller->callback = callback;
-    } 
+    }
+}
+
+HAL_StatusTypeDef SPI_Transmit(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t length,uint32_t timeout){
+    SPI_Controller_t *spi_controller = SPI_GetManageObject(hspi);
+    if(spi_controller != NULL){
+        return HAL_SPI_Transmit(hspi, pData,length,timeout);
+    }
+    return HAL_ERROR;
+}
+
+HAL_StatusTypeDef SPI_Receive(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t length, uint32_t timeout){
+    SPI_Controller_t *spi_controller = SPI_GetManageObject(hspi);
+    if(spi_controller != NULL){
+        return HAL_SPI_Receive(hspi,pData,length,timeout);
+    }
+    return HAL_ERROR;
+}
+
+HAL_StatusTypeDef SPI_TransmitReceive(SPI_HandleTypeDef *hspi, const uint8_t *pTxData, uint8_t *pRxData,uint16_t length, uint32_t timeout){
+    SPI_Controller_t *spi_controller = SPI_GetManageObject(hspi);
+    if(spi_controller != NULL){
+        return HAL_SPI_TransmitReceive(hspi, pTxData,pRxData,length,timeout);
+    }
+    return HAL_ERROR;
 }
 
 HAL_StatusTypeDef SPI_Transmit_IT(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t length){
@@ -82,18 +86,18 @@ HAL_StatusTypeDef SPI_Receive_IT(SPI_HandleTypeDef *hspi, uint16_t length){
     }
     return HAL_ERROR;
 }
-
-HAL_StatusTypeDef SPI_TransmitReceive_IT(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t length){
+HAL_StatusTypeDef SPI_TransmitReceive_IT(SPI_HandleTypeDef *hspi, uint8_t *pTxData, uint8_t *pRxData, uint16_t length){
     SPI_Controller_t *spi_controller = SPI_GetManageObject(hspi);
     if(spi_controller != NULL){
-        return HAL_SPI_TransmitReceive_IT(hspi, pData, spi_controller->rxBuffer, length);
+        return HAL_SPI_TransmitReceive_IT(hspi, pTxData, pRxData, length);
     }
     return HAL_ERROR;
 }
 
+
 void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi){
     SPI_Controller_t *spi_controller = SPI_GetManageObject(hspi);
     if(spi_controller != NULL && spi_controller->callback != NULL){
-        spi_controller->callback(spi_controller->rxBuffer, spi_controller->rxDataLength);
+        spi_controller->callback(spi_controller->rxBuffer, hspi->RxXferSize);
     }
 }

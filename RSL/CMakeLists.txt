@@ -33,7 +33,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 target_include_directories(${PROJECT_NAME} PUBLIC
     include
     Algorithm/inc
-    Device/BMI088
+    Device/inc
+    Device/define
     Device/GNSS/inc
     Driver/inc
 )

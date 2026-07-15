@@ -1,13 +1,3 @@
-/**
- ******************************************************************************
- * @file           : drv_spi.c
- * @brief          : SPI驱动
- ******************************************************************************
- * @attention
- *
- ******************************************************************************
- */
-
 #ifndef __DRV_SPI_H
 #define __DRV_SPI_H
 
@@ -16,27 +6,34 @@ extern "C" {
 #endif
 
 #include "RSL_common.h"
+#include "board_config.h"
 #include "spi.h"
 
-#define SPI_BUFFER_SIZE 256 // SPI接收缓冲区最大长度
+#define RX_BUFFER_SIZE 256
 
 typedef void (*SPI_Callback)(uint8_t *pData, uint16_t length);
 
-typedef struct {
+typedef struct{
     SPI_HandleTypeDef *hspi;
-    uint8_t rxBuffer[SPI_BUFFER_SIZE]; // 接收缓冲区
-    uint16_t rxDataLength;
+    uint8_t rxBuffer[RX_BUFFER_SIZE];
+    uint16_t rxLength;
     SPI_Callback callback;
-} SPI_Controller_t;
+}SPI_Controller_t;
 
 void SPI_Init(SPI_HandleTypeDef *hspi, SPI_Callback callback);
 void SPI_SwitchCallBackFunction(SPI_HandleTypeDef *hspi, SPI_Callback callback);
+HAL_StatusTypeDef SPI_Transmit(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t length, uint32_t timeout);
+HAL_StatusTypeDef SPI_Receive(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t length, uint32_t timeout);
+HAL_StatusTypeDef SPI_TransmitReceive(SPI_HandleTypeDef *hspi, const uint8_t *pTxData, uint8_t *pRxData,uint16_t length,   uint32_t timeout);
+
 HAL_StatusTypeDef SPI_Transmit_IT(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t length);
 HAL_StatusTypeDef SPI_Receive_IT(SPI_HandleTypeDef *hspi, uint16_t length);
-HAL_StatusTypeDef SPI_TransmitReceive_IT(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t length);
+HAL_StatusTypeDef SPI_TransmitReceive_IT(SPI_HandleTypeDef *hspi, uint8_t *pTxData, uint8_t *pRxData, uint16_t length);
+void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi);
+
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __DRV_SPI_H */
+#endif
