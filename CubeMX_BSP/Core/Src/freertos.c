@@ -51,7 +51,7 @@
 osThreadId_t RocketHandle;
 const osThreadAttr_t Rocket_attributes = {
   .name = "Rocket",
-  .stack_size = 256 * 4,
+  .stack_size = 2048 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 

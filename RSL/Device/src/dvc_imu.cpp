@@ -319,7 +319,7 @@ bool BMI088::selfTestGyro(){
     osDelay(BMI088_LONG_DELAY_TIME);
 
     readSingleReg(m_gyroSPIConfig, BMI088_GYRO_CHIP_ID, res);
-    Delay_us(BMI088_COM_WAIT_SENSOR_TIME);
+    osDelay(BMI088_LONG_DELAY_TIME);
 
     if(res != BMI088_GYRO_CHIP_ID_VALUE){
         handleError(BMI088_NO_SENSOR);
@@ -327,7 +327,7 @@ bool BMI088::selfTestGyro(){
     }
 
     writeSingleReg(m_gyroSPIConfig, BMI088_GYRO_SOFTRESET, BMI088_GYRO_SOFTRESET_VALUE);
-    Delay_us(BMI088_COM_WAIT_SENSOR_TIME);
+    osDelay(BMI088_LONG_DELAY_TIME);
 
     readSingleReg(m_gyroSPIConfig, BMI088_GYRO_CHIP_ID, res);
     Delay_us(BMI088_COM_WAIT_SENSOR_TIME);
