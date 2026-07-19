@@ -8,6 +8,7 @@
 #include "def_bmi088.h"
 #include "drv_spi.h"
 
+#define SpiLockTimeoutMs 5
 class IMU
 {
 // protected:
@@ -26,16 +27,22 @@ public:
     static constexpr fp32 ACCEL_SEN = BMI088_ACCEL_3G_SEN;
     static constexpr fp32 GYRO_SEN  = BMI088_GYRO_2000_SEN;
 
+    bool m_Inited = false;
+
 public:
     virtual ~IMU() = default;
     virtual bool init() = 0;
     Vector3f solveAttitude();
+    bool isInited() {return m_Inited;}
+    Vector3f getGyroRawData(){return m_gyroRawData;}
+    Vector3f getAccelRawData(){return m_accelRawData;}
+    Vector3f getMagnetRawData(){return m_magnetRawData;}
 
 // protected:
 //仅供调试
 public:
     IMU(AHRS *ahrs);
-    virtual void readRawData() = 0;
+    virtual bool readRawData() = 0;
     virtual void dataCalibration() = 0;
 };
 
@@ -86,33 +93,67 @@ public:
         Matrix33f installSpinMatrix;
     };
 
-protected:
+private:
     SPIConfig m_accelSPIConfig;
     SPIConfig m_gyroSPIConfig;
     const CalibrationInfo m_calibrationInfo;
     ErrorCallback m_errorCallback;
     ErrorCode m_errorCode;
-    fp32 m_temperature;                      // 温度值
-    // TemperatureCtrlConfig *m_tempCtrlConfig; // 温度控制配置
+private:
+    fp32 m_temperature;                      
+    uint32_t m_busTimeoutCount;
+    uint16_t m_tempDivider;
+    int16_t m_accelCounts[3];
+    int16_t m_gyroCounts[3];
+
+    class SPIGuard
+    {
+    public:
+        SPIGuard(const SPIConfig& cfg, uint32_t timeoutMs)
+            : m_cfg(cfg),
+              m_locked(SPI_BusLock(cfg.hspi, timeoutMs) == HAL_OK)
+        {
+            if (m_locked)
+                HAL_GPIO_WritePin(m_cfg.csGPIOPort, m_cfg.csPin, GPIO_PIN_RESET);
+        }
+
+        ~SPIGuard()
+        {
+            if (m_locked) {
+                HAL_GPIO_WritePin(m_cfg.csGPIOPort, m_cfg.csPin, GPIO_PIN_SET);
+                SPI_BusUnlock(m_cfg.hspi);
+            }
+        }
+
+        bool ok() const { return m_locked; }
+
+        SPIGuard(const SPIGuard&)            = delete;
+        SPIGuard& operator=(const SPIGuard&) = delete;
+
+    private:
+        const SPIConfig& m_cfg;
+        bool             m_locked;
+    };
 
 
 public:
     BMI088(AHRS *ahrs, SPIConfig accelSPIconfig,SPIConfig gyroSPIconfig,CalibrationInfo calibrationInfo, ErrorCallback errorCallback);
     bool init() override;
+    uint32_t getBusTimeoutCount() {return m_busTimeoutCount;}
 
 // protected:
 //仅供调试
 public:
 
-    void readRawData() override;
+    bool readRawData() override;
     void dataCalibration() override;
     bool selfTestAccel();
     bool selfTestGyro();
     bool initAccel();
     bool initGyro();
-    inline void readSingleReg(const SPIConfig &SPIconfig, uint8_t reg, uint8_t &prxData);
-    void readMutipleReg(const SPIConfig &SPIconfig, uint8_t reg, uint8_t *prxData, uint8_t length);
-    void writeSingleReg(const SPIConfig &SPIconfig, uint8_t reg,uint8_t txData);
+    inline bool readSingleReg(const SPIConfig &SPIconfig, uint8_t reg, uint8_t &prxData);
+    bool readMutipleReg(const SPIConfig &SPIconfig, uint8_t reg, uint8_t *prxData, uint8_t length);
+    bool writeSingleReg(const SPIConfig &SPIconfig, uint8_t reg,uint8_t txData);
     void handleError(ErrorCode errorcode);
 
 

@@ -58,7 +58,7 @@ const osThreadAttr_t Rocket_attributes = {
 osThreadId_t GNSSHandle;
 const osThreadAttr_t GNSS_attributes = {
   .name = "GNSS",
-  .stack_size = 512 * 4,
+  .stack_size = 1024 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
 

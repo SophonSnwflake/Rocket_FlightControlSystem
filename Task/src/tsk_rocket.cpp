@@ -23,9 +23,11 @@ BMI088 imu(&myEKF,
            nullptr 
            ); 
 
-NEOM9N_UART m_gnss;
+NEOM9N_UART gnss;
 
-Rocket rocket(&imu, &m_gnss);
+W25Q128 flash(hspi1, GPIOA, GPIO_PIN_4);
+
+Rocket rocket(&imu, &gnss, &flash);
 
 
 extern uint16_t g_last_size;
@@ -37,7 +39,7 @@ extern "C" void rocket_task(void *argument)
     rocket.Init();
     while (true)
     {
-        rocket.rocketLoop();
+        rocket.rocketTotalLoop();
         vTaskDelayUntil(&last_wake_time, 100);
     }
 }

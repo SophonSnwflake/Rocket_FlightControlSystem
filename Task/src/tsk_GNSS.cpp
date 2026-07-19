@@ -5,14 +5,17 @@
 #include "alg_ahrs.hpp"
 #include "drv_uart.h"
 
-extern NEOM9N_UART m_gnss;
+
+extern NEOM9N_UART gnss;
+
 
 extern "C" void GNSS_task(void *argument){
     TickType_t last_wake_time = xTaskGetTickCount();
-    m_gnss.Init();
+    gnss.Init();
     while (true)
     {
-        m_gnss.handleGNSSMessageLoop();
+        gnss.handleGNSSMessageLoop();
+
         vTaskDelayUntil(&last_wake_time, 100);
     }
 }

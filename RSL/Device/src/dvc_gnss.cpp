@@ -145,10 +145,6 @@ m_memoryState = FREE;
 void NEOM9N_UART::handleGNSSMessageLoop(){
     if(m_memoryState == LOADED){
         m_memoryState = BUSY;
-        // TODO: 临时诊断代码，确认GNSS模块实际发送的协议(NMEA/UBX)后删除
-        printf("GNSS raw len=%u: ", m_para_size);
-        UART_SendData(&huart1,m_rxBuffer,m_para_size);
-        printf("\r\n");
         parseUBXdata(m_rxBuffer);
     }
     m_memoryState = FREE;

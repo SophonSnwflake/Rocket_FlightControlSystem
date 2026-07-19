@@ -1,9 +1,11 @@
 #include "dvc_imu.hpp"
 #include "drv_time.h"
 
+#define SPI_TRY_TIMES 3
+
 IMU::Vector3f IMU::solveAttitude()
 {
-    readRawData();
+    if(!readRawData()) return m_ahrs->getEulerAngle();
     dataCalibration();
     m_ahrs->update(m_gyroData, m_accelData, m_magnetData);
     return m_ahrs->getEulerAngle();
@@ -16,9 +18,12 @@ BMI088::BMI088(AHRS *ahrs, SPIConfig accelSPIconfig,SPIConfig gyroSPIconfig,Cali
     IMU(ahrs), m_accelSPIConfig(accelSPIconfig),m_gyroSPIConfig(gyroSPIconfig),m_calibrationInfo(calibrationInfo), m_errorCallback(errorCallback)
 {
     m_errorCode = BMI088_NO_ERROR;
+    m_Inited = false;
+    m_tempDivider = 0;
 } 
 
 bool BMI088::init(){
+    if(m_Inited == true) return true;
     m_errorCode = BMI088_NO_ERROR;
     if (selfTestAccel()){
         initAccel();
@@ -35,6 +40,8 @@ bool BMI088::init(){
         handleError(BMI088_SELF_TEST_GYRO_ERROR);
         return false;
     }
+
+    m_Inited = true;
 
     return true;
 }
@@ -53,37 +60,49 @@ void BMI088::handleError(BMI088::ErrorCode errorCode)
         m_errorCallback(errorCode);
 }
 
-void BMI088::readRawData(){
-    uint8_t buf[8] = {0,0,0,0,0,0,0,0};
-    int16_t bmi088_raw_temp;
+bool BMI088::readRawData()
+{
+    uint8_t buf[8] = {0};
+    int16_t raw;                       // 原名 bmi088_raw_temp 有歧义,它不只装温度
 
-    readMutipleReg(m_accelSPIConfig, BMI088_ACCEL_XOUT_L,buf,6);
+    // ---- 加速度计 ----
+    if (!readMutipleReg(m_accelSPIConfig, BMI088_ACCEL_XOUT_L, buf, 6)) return false;
 
-    bmi088_raw_temp   = (int16_t)((buf[1]) << 8) | buf[0];
-    m_accelRawData[0] = bmi088_raw_temp * ACCEL_SEN;
-    bmi088_raw_temp   = (int16_t)((buf[3]) << 8) | buf[2];
-    m_accelRawData[1] = bmi088_raw_temp * ACCEL_SEN;
-    bmi088_raw_temp   = (int16_t)((buf[5]) << 8) | buf[4];
-    m_accelRawData[2] = bmi088_raw_temp * ACCEL_SEN;
+    raw = (int16_t)((buf[1] << 8) | buf[0]);
+    m_accelCounts[0]  = raw;
+    m_accelRawData[0] = raw * ACCEL_SEN;
+    raw = (int16_t)((buf[3] << 8) | buf[2]);
+    m_accelCounts[1]  = raw;
+    m_accelRawData[1] = raw * ACCEL_SEN;
+    raw = (int16_t)((buf[5] << 8) | buf[4]);
+    m_accelCounts[2]  = raw;
+    m_accelRawData[2] = raw * ACCEL_SEN;
 
-    readMutipleReg(m_gyroSPIConfig, BMI088_GYRO_CHIP_ID, buf, 8);
-    if (buf[0] == BMI088_GYRO_CHIP_ID_VALUE) {
-        bmi088_raw_temp  = (int16_t)((buf[3]) << 8) | buf[2];
-        m_gyroRawData[0] = bmi088_raw_temp * GYRO_SEN;
-        bmi088_raw_temp  = (int16_t)((buf[5]) << 8) | buf[4];
-        m_gyroRawData[1] = bmi088_raw_temp * GYRO_SEN;
-        bmi088_raw_temp  = (int16_t)((buf[7]) << 8) | buf[6];
-        m_gyroRawData[2] = bmi088_raw_temp * GYRO_SEN;
+    // ---- 陀螺仪 ----
+    if (!readMutipleReg(m_gyroSPIConfig, BMI088_GYRO_CHIP_ID, buf, 8)) return false;
+    if (buf[0] != BMI088_GYRO_CHIP_ID_VALUE) return false;
+
+    raw = (int16_t)((buf[3] << 8) | buf[2]);
+    m_gyroCounts[0]  = raw;
+    m_gyroRawData[0] = raw * GYRO_SEN;
+    raw = (int16_t)((buf[5] << 8) | buf[4]);
+    m_gyroCounts[1]  = raw;
+    m_gyroRawData[1] = raw * GYRO_SEN;
+    raw = (int16_t)((buf[7] << 8) | buf[6]);
+    m_gyroCounts[2]  = raw;
+    m_gyroRawData[2] = raw * GYRO_SEN;
+
+    // ---- 温度:约 1Hz,读失败沿用旧值,不影响本帧 ----
+    if (++m_tempDivider >= 400) {
+        m_tempDivider = 0;
+        if (readMutipleReg(m_accelSPIConfig, BMI088_TEMP_M, buf, 2)) {
+            raw = (int16_t)((buf[0] << 3) | (buf[1] >> 5));
+            if (raw > 1023) raw -= 2048;
+            m_temperature = raw * BMI088_TEMP_FACTOR + BMI088_TEMP_OFFSET;
+        }
     }
-    readMutipleReg(m_accelSPIConfig, BMI088_TEMP_M, buf, 2);
 
-    bmi088_raw_temp = (int16_t)((buf[0] << 3) | (buf[1] >> 5));
-
-    if (bmi088_raw_temp > 1023) {
-        bmi088_raw_temp -= 2048;
-    }
-
-    m_temperature = bmi088_raw_temp * BMI088_TEMP_FACTOR + BMI088_TEMP_OFFSET;
+    return true;
 }
 
 bool BMI088::initAccel(){
@@ -354,34 +373,44 @@ bool BMI088::selfTestGyro(){
     return true;
 }
 
-inline void BMI088::readSingleReg(const SPIConfig &SPIconfig, uint8_t reg, uint8_t &prxData){
+
+inline bool BMI088::readSingleReg(const SPIConfig &SPIconfig, uint8_t reg, uint8_t &prxData){
     reg |= 0x80;
     uint8_t dummy =0xFF;
-    HAL_GPIO_WritePin(SPIconfig.csGPIOPort, SPIconfig.csPin,GPIO_PIN_RESET);
+    SPIGuard guard(SPIconfig, SpiLockTimeoutMs);
+    if (!guard.ok()) {
+        m_busTimeoutCount++;
+        return false;
+    }
     SPI_Transmit(SPIconfig.hspi, &reg, 1, 1000);
     if (&SPIconfig == &m_accelSPIConfig){
-        SPI_Receive(SPIconfig.hspi, &dummy, 1, 1000);
+        if(SPI_Receive(SPIconfig.hspi, &dummy, 1, 1000)!=HAL_OK) return false;
     }
-    SPI_Receive(SPIconfig.hspi, &prxData, 1, 1000);
-    HAL_GPIO_WritePin(SPIconfig.csGPIOPort, SPIconfig.csPin, GPIO_PIN_SET);
+    return SPI_Receive(SPIconfig.hspi, &prxData, 1, 1000) == HAL_OK;
 }
 
 
-void BMI088::readMutipleReg(const SPIConfig &SPIconfig, uint8_t reg, uint8_t *prxData, uint8_t length){
+bool BMI088::readMutipleReg(const SPIConfig &SPIconfig, uint8_t reg, uint8_t *prxData, uint8_t length){
     reg |= 0x80;
     uint8_t dummy = 0xFF;
-    HAL_GPIO_WritePin(SPIconfig.csGPIOPort, SPIconfig.csPin, GPIO_PIN_RESET);
+    SPIGuard guard(SPIconfig, SpiLockTimeoutMs);
+    if (!guard.ok()) {
+        m_busTimeoutCount++;
+        return false;
+    }
     SPI_Transmit(SPIconfig.hspi, &reg, 1, 1000);
     if (&SPIconfig == &m_accelSPIConfig){
-        SPI_Transmit(SPIconfig.hspi, &dummy, 1, 1000);
+        if(SPI_Transmit(SPIconfig.hspi, &dummy, 1, 1000)!=HAL_OK) return false;
     }
-    SPI_Receive(SPIconfig.hspi, prxData, length, 1000);
-    HAL_GPIO_WritePin(SPIconfig.csGPIOPort, SPIconfig.csPin, GPIO_PIN_SET);
+    return SPI_Receive(SPIconfig.hspi, prxData, length, 1000) == HAL_OK;
 }
 
-void BMI088::writeSingleReg(const SPIConfig &SPIconfig, uint8_t reg,uint8_t txData){
-    HAL_GPIO_WritePin(SPIconfig.csGPIOPort, SPIconfig.csPin, GPIO_PIN_RESET);
-    SPI_Transmit(SPIconfig.hspi, &reg, 1, 1000);
-    SPI_Transmit(SPIconfig.hspi, &txData, 1, 1000);
-    HAL_GPIO_WritePin(SPIconfig.csGPIOPort, SPIconfig.csPin, GPIO_PIN_SET);
+bool BMI088::writeSingleReg(const SPIConfig &SPIconfig, uint8_t reg,uint8_t txData){
+    SPIGuard guard(SPIconfig, SpiLockTimeoutMs);
+    if (!guard.ok()) {
+        m_busTimeoutCount++;
+        return false;
+    }
+    if(SPI_Transmit(SPIconfig.hspi, &reg, 1, 1000)!=HAL_OK) return false;
+    return SPI_Transmit(SPIconfig.hspi, &txData, 1, 1000) == HAL_OK;
 }
