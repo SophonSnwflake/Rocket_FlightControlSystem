@@ -59,14 +59,22 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define LED_Pin GPIO_PIN_13
 #define LED_GPIO_Port GPIOC
-#define FLASH_CS_Pin GPIO_PIN_4
-#define FLASH_CS_GPIO_Port GPIOA
+#define LORA_NSS_Pin GPIO_PIN_4
+#define LORA_NSS_GPIO_Port GPIOA
 #define BMI088_GYRO_CS_Pin GPIO_PIN_0
 #define BMI088_GYRO_CS_GPIO_Port GPIOB
 #define BMI088_GYRO_CSB10_Pin GPIO_PIN_10
 #define BMI088_GYRO_CSB10_GPIO_Port GPIOB
 #define BMI088_ACCEL_CS_Pin GPIO_PIN_12
 #define BMI088_ACCEL_CS_GPIO_Port GPIOB
+#define LORA_DIO1_Pin GPIO_PIN_11
+#define LORA_DIO1_GPIO_Port GPIOA
+#define LORA_RXEN_Pin GPIO_PIN_12
+#define LORA_RXEN_GPIO_Port GPIOA
+#define LORA_TXEN_Pin GPIO_PIN_15
+#define LORA_TXEN_GPIO_Port GPIOA
+#define LORA_NRST_Pin GPIO_PIN_8
+#define LORA_NRST_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

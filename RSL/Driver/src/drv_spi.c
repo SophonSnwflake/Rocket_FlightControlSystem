@@ -93,7 +93,7 @@ void SPI_BusInit(SPI_HandleTypeDef *hspi)
  *        2) 调度器未启动     —— 此时不存在并发，且 xSemaphoreTake 会因为没有
  *                               当前任务而 configASSERT 或 HardFault。外设
  *                               初始化（如 flash 的 init()）正是跑在这个阶段。
- *        3) 句柄为 NULL      —— 配置错误，报错而非静默放行
+ *        3) 句柄为 NULL      —— 配置错误，报错而非静默放行                                    
  *
  * @note  使用 xSemaphoreCreateMutexStatic 创建的互斥量带优先级继承：
  *        低优先级任务持锁期间被高优先级任务等待时，会临时提升其优先级，
@@ -108,7 +108,7 @@ void SPI_BusInit(SPI_HandleTypeDef *hspi)
  */
 HAL_StatusTypeDef SPI_BusLock(SPI_HandleTypeDef *hspi, uint32_t timeoutMs)
 {
-    const int index = SPI_getBusIndex(hspi);
+    const int index = SPI_getBusIndex(hspi);//                                                                                                                                                                 
     if (index < 0) return HAL_OK;
     if (xTaskGetSchedulerState() == taskSCHEDULER_NOT_STARTED) return HAL_OK;
     if (s_busMutex[index] == NULL) return HAL_ERROR;

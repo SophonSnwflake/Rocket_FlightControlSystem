@@ -110,7 +110,7 @@ private:
     {
     public:
         SPIGuard(const SPIConfig& cfg, uint32_t timeoutMs)
-            : m_cfg(cfg),
+            : m_cfg(cfg),   
               m_locked(SPI_BusLock(cfg.hspi, timeoutMs) == HAL_OK)
         {
             if (m_locked)

@@ -5,7 +5,6 @@
 #include "cmsis_os.h"
 #include "stm32f411xe.h"
 #include "drv_uart.h"
-#include "alg_nmea.h"
 
 class GNSS
 {

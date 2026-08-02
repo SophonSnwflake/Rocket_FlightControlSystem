@@ -11,6 +11,7 @@
 #include "drv_time.h"
 #include "dvc_flash.hpp"
 #include "dvc_flash.hpp"
+#include "dvc_lora.hpp"
 
 class Rocket
 {
@@ -28,12 +29,13 @@ private:
     IMU *m_imu;
     GNSS *m_gnss;
     W25Q128 *m_flash;
+    SX1268 *m_lora;
 
 private:
     LaunchPhase m_launchPhase;
 
 public:
-    Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash);
+    Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora);
     virtual ~Rocket() = default;
     void Init();
     void rocketTotalLoop();

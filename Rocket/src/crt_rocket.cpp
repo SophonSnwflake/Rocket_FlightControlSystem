@@ -23,26 +23,55 @@ static const char* resultName(Flash::Result r)
 extern volatile uint16_t g_last_size;
 extern volatile uint32_t g_callback_count;
 
-Rocket::Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash):
+Rocket::Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora):
     m_imu(imu),
     m_gnss(gnss),
-    m_flash(flash)
+    m_flash(flash),
+    m_lora(lora)
 
 {}
 
 void Rocket::Init(){
     DWT_Init();
     SPI_BusInit(&hspi1);
+    SPI_BusInit(&hspi2);
     SPI_Init(&hspi1, nullptr);
     UART_Init(&huart1,nullptr,100);
     UART_Init(&huart2,uart2Callback,1024);
-    m_imu->init();
-    m_flash->Init();
+    // m_imu->init();
+    LoRa::ConfigLoRa_t loraConfig{
+    434.0f,                 // frequency
+    125.0f,                 // bandwidthKhz
+    9U,                     // spreadingFactor
+    7U,                     // codingRate
+    LORA_SYNC_WORD_PRIVATE, // syncWord
+    10,                     // power
+    8U                      // preambleLength
+    };
+
+    if(m_lora->beginLoRa(loraConfig) == LoRa::LoraError::OK){
+        printf("LoraInitSuccess!\r\n");
+    }else{
+        printf("LoraInitFailed!\r\n");
+    }
+    // m_flash->Init();
 
 }
 
+const uint8_t message[] = "Hello SX1268";
+
 void Rocket::rocketTotalLoop(){
-    
+    // m_imu->solveAttitude();
+    const LoRa::LoraError error = m_lora->transmit(message, sizeof(message), 0x00U);
+
+    if (error == LoRa::LoraError::OK) {
+        printf("TX done\r\n");
+    } else {
+        printf("TX error: %u\r\n", static_cast<unsigned>(error));
+    }
+
+    osDelay(1000U);
+
 }
 
 

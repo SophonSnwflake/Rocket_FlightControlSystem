@@ -33,7 +33,7 @@ bool BMI088::init(){
         return false;
     }
 
-    if (selfTestGyro()){
+    if (selfTestGyro()){  
         initGyro();
     }
     else{

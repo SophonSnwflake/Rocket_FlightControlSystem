@@ -8,7 +8,7 @@ extern "C"{
 #define UART_BUFFER_SIZE 1024
 
 #include "RSL_common.h"
-#include "usart.h"
+#include "usart.h"       
 #include "board_config.h"
 
 typedef void (*UART_Call_Back)(uint8_t *pRxData, uint16_t rxDataLength);

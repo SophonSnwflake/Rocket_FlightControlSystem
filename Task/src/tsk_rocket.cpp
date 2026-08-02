@@ -4,6 +4,7 @@
 #include "dvc_imu.hpp"
 #include "alg_ahrs.hpp"
 #include "drv_uart.h"
+#include "dvc_lora.hpp"
 
 using Vector3f = RSLMath::Vector3f;
 using Matrix33f = RSLMath::Matrix33f; 
@@ -27,7 +28,19 @@ NEOM9N_UART gnss;
 
 W25Q128 flash(hspi1, GPIOA, GPIO_PIN_4);
 
-Rocket rocket(&imu, &gnss, &flash);
+SX1268::SX1268PinConfig loraConfig{
+    &hspi2,
+    {GPIOA, GPIO_PIN_4},   // cs / NSS
+    {GPIOA, GPIO_PIN_8},   // busy
+    {GPIOB, GPIO_PIN_8},   // rst
+    {GPIOA, GPIO_PIN_11},  // dio1
+    {GPIOA, GPIO_PIN_12},  // rxen
+    {GPIOA, GPIO_PIN_15}   // txen
+};
+
+SX1268 lora(loraConfig);
+
+Rocket rocket(&imu, &gnss, nullptr, &lora);
 
 
 extern uint16_t g_last_size;

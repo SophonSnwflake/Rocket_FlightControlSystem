@@ -9,6 +9,7 @@ extern "C" {
 #include "board_config.h"
 #include "spi.h"
 
+
 #define RX_BUFFER_SIZE 256
 
 typedef void (*SPI_Callback)(uint8_t *pData, uint16_t length);
