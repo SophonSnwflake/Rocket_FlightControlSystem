@@ -86,8 +86,6 @@ protected:
 
 
 
-
-
 class SX1268: public LoRa{
 public:
     typedef struct {

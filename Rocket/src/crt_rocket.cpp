@@ -61,15 +61,15 @@ void Rocket::Init(){
 const uint8_t message[] = "Hello SX1268";
 
 void Rocket::rocketTotalLoop(){
-    // m_imu->solveAttitude();
-    const LoRa::LoraError error = m_lora->transmit(message, sizeof(message), 0x00U);
+    // // m_imu->solveAttitude();
+    // const LoRa::LoraError error = m_lora->transmit(message, sizeof(message), 0x00U);
 
-    if (error == LoRa::LoraError::OK) {
-        printf("TX done\r\n");
-    } else {
-        printf("TX error: %u\r\n", static_cast<unsigned>(error));
-    }
-
+    // if (error == LoRa::LoraError::OK) {
+    //     printf("TX done\r\n");
+    // } else {
+    //     printf("TX error: %u\r\n", static_cast<unsigned>(error));
+    // }
+    printf("Hello!\r\n");
     osDelay(1000U);
 
 }
