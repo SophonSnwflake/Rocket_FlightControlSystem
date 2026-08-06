@@ -5,7 +5,6 @@ build/
 *.mxproject
 
 # IDE
-.vscode/
 .idea/
 *.swp
 *.swo
@@ -23,3 +22,5 @@ Thumbs.db
 *.hex
 *.map
 *.lst
+
+CLAUDE.md

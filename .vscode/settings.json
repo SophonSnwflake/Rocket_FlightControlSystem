@@ -1,0 +1,9 @@
+{
+    "clangd.arguments": [
+        "--compile-commands-dir=build/Debug",
+        "--query-driver=D:/Software/Dev/Scoop/apps/gcc-arm-none-eabi/current/bin/arm-none-eabi-g*",
+        "--clang-tidy",
+        "--pch-storage=memory",
+    ],
+    "EIDE.OpenOCD.ExePath": "D:\\Scoop\\shims\\openocd.exe"
+}
