@@ -177,7 +177,7 @@ private:
     bool m_calibrationValid = false;
 
 public:
-    explicit BMP388(BMP388_HandleTypeDef handleTypeDef);
+    explicit BMP388(BMP388_HandleTypeDef handleTypeDef, BMP388Config config);
 
     // 对外主要接口
     BarometerError init() override;

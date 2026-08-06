@@ -5,6 +5,7 @@
 #include "alg_ahrs.hpp"
 #include "drv_uart.h"
 #include "dvc_lora.hpp"
+#include "dvc_barometer.hpp"
 
 using Vector3f = RSLMath::Vector3f;
 using Matrix33f = RSLMath::Matrix33f; 
@@ -40,7 +41,26 @@ SX1268::SX1268PinConfig loraConfig{
 
 SX1268 lora(loraConfig);
 
-Rocket rocket(&imu, &gnss, nullptr, &lora);
+BMP388::BMP388_HandleTypeDef barometerHandle{
+    &hspi1,       // spiHandle
+    GPIOB,        // cs_port
+    GPIO_PIN_1,  // cs_pin
+    0U,           // m_chipID：初始化前未知
+    1U,           // dummy_byte：BMP388 使用 SPI 读取时需要 1 个 dummy byte
+    false         // initialized：尚未初始化
+};
+
+BMP388::BMP388Config barometerConfig{
+    BMP388::Oversampling::X4,
+    BMP388::Oversampling::X4,
+    BMP388::OutputDataRate::Hz0_195,
+    BMP388::IIRFilter::C4
+};
+
+ActiveBuzzer buzzer(GPIOB, GPIO_PIN_2, false);
+
+BMP388 barometer(barometerHandle, barometerConfig);
+Rocket rocket(&imu, &gnss, nullptr, &lora, &barometer, &buzzer);
 
 
 extern uint16_t g_last_size;

@@ -12,6 +12,8 @@
 #include "dvc_flash.hpp"
 #include "dvc_flash.hpp"
 #include "dvc_lora.hpp"
+#include "dvc_barometer.hpp"
+#include "dvc_buzzer.hpp"
 
 class Rocket
 {
@@ -30,12 +32,14 @@ private:
     GNSS *m_gnss;
     W25Q128 *m_flash;
     SX1268 *m_lora;
+    BMP388 *m_barometer;
+    ActiveBuzzer *m_buzzer;
 
 private:
     LaunchPhase m_launchPhase;
 
 public:
-    Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora);
+    Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barometer, ActiveBuzzer *buzzer);
     virtual ~Rocket() = default;
     void Init();
     void rocketTotalLoop();

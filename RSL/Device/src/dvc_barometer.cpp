@@ -2,10 +2,11 @@
 #include "drv_spi.h"
 
 
-BMP388::BMP388(BMP388_HandleTypeDef handleTypeDef) :
+BMP388::BMP388(BMP388_HandleTypeDef handleTypeDef, BMP388Config config) :
     m_initialized(false),
     m_calibrationValid(false),
-    m_busTimeoutCount(0U)
+    m_busTimeoutCount(0U),
+    m_config(config)
 {
     m_handleTypeDef = handleTypeDef;   
 }
@@ -14,7 +15,22 @@ Barometer::BarometerError BMP388::init(){
     m_initialized = false;
     uint8_t chipId = 0;
 
-    BARO_TRY(readRegister(REG_CHIP_ID, &chipId));
+
+    for (uint32_t i = 0; i < 1000U; i++)
+    {
+    uint8_t chipId = 0U;
+
+    const auto result =
+        readRegister(REG_CHIP_ID, &chipId);
+
+    printf(
+        "result=%u, chipId=0x%02X\r\n",
+        static_cast<unsigned int>(result),
+        static_cast<unsigned int>(chipId));
+
+    HAL_Delay(10U);
+    }
+    // BARO_TRY(readRegister(REG_CHIP_ID, &chipId));
 
     if (chipId != CHIP_ID_BMP388) {
         return BarometerError::DEVICE_NOT_FOUND;
