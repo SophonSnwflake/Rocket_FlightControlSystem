@@ -526,6 +526,30 @@ struct ulog_message_parameter_s
 };
 
 
+/**
+ * @brief ULog 文件功能标志消息
+ *
+ * 该消息用于声明当前 ULog 文件使用了哪些兼容或不兼容特性，
+ * 以及文件末尾是否存在追加数据区域。
+ *
+ * 对于当前基础日志实现：
+ * - compat_flags 全部置 0；
+ * - incompat_flags 全部置 0；
+ * - appended_offsets 全部置 0。
+ *
+ * msg_size 表示消息负载长度，不包含前面的
+ * uint16_t msg_size 和 uint8_t msg_type 共 3 字节。
+ */
+struct ulog_message_flag_bits_s {
+	uint16_t msg_size;
+	uint8_t msg_type = static_cast<uint8_t>(ULogMessageType::FLAG_BITS);
+
+	uint8_t compat_flags[8] = {};
+	uint8_t incompat_flags[8] = {}; ///< @see ULOG_INCOMPAT_FLAG_*
+	uint64_t appended_offsets[3] = {}; ///< file offset(s) for appended data if ULOG_INCOMPAT_FLAG0_DATA_APPENDED_MASK is set
+};
+
+
 /*
  * 恢复进入该头文件之前的结构体对齐设置，
  * 避免影响其他普通 C++ 结构体。
@@ -558,5 +582,9 @@ static_assert(
 static_assert(
     sizeof(ulog_message_data_s) == 5U,
     "ULog data prefix must be exactly 5 bytes");
+
+static_assert(
+    sizeof(ulog_message_flag_bits_s) == 43U,
+    "ulog_message_flag_bits_s size must be 43 bytes");
 
 } // namespace RocketLog

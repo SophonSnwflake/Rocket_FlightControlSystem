@@ -2,7 +2,7 @@
 
 #include "RSL_common.h"
 #include <stdio.h>
-#include <cstdint>
+// #include <cstdint>
 #include "dvc_flash.hpp"
 
 namespace RocketLog
