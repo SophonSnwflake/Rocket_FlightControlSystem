@@ -2,6 +2,9 @@
 
 #include <cstdint>
 
+// 本协议基于 ULog 文件格式，采用自描述逻辑，参考：
+// https://github.com/PX4/PX4-Autopilot.git
+
 namespace RocketLog
 {
 

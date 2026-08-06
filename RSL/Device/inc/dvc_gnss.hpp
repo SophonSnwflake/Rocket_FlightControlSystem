@@ -17,7 +17,7 @@ public:
     uint8_t precision : 1;  // 精度有效
     uint8_t altitude : 1;   // 高度有效
     uint8_t tracking : 1;   // 航向有效
-    uint8_t velocity :1;    // 速度有效
+    uint8_t velocity : 1;    // 速度有效
     } valid;
 
     typedef enum {
