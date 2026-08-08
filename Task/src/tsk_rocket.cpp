@@ -73,6 +73,6 @@ extern "C" void rocket_task(void *argument)
     while (true)
     {
         rocket.rocketTotalLoop();
-        vTaskDelayUntil(&last_wake_time, 100);
+        vTaskDelayUntil(&last_wake_time, 1);
     }
 }

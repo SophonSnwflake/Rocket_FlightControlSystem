@@ -43,10 +43,11 @@ public:
     InvalidBandWidth,
     InvalidOutputPower,
     InvalidFrequency,
-    PacketTooLong,
-    TxTimeOut,
+    PacketTooLong, // 15
+    TxTimeOut, // 16
     RxTimeOut,
     CrcMismatch,
+    InvalidTXCOVoltage,
     };
 protected:
     
@@ -130,11 +131,13 @@ public:
 private:
     SX1268PinConfig m_PinConfig;
     RadioModeType_t m_radioType;
+    
 
 private:
     uint32_t m_busTimeoutCount;
     const char* m_chipType = NULL;
-
+    uint32_t        m_tcxoDelay = 0;
+    fp32 m_tcxoVoltage = 0;
 public:
     SX1268(SX1268PinConfig &config);
     LoraError beginLoRa(const ConfigLoRa_t& config) override;
@@ -171,6 +174,9 @@ public:
         const SX1268PinConfig& m_cfg;
         bool                   m_locked;
     };
+
+    // 抓虫临时函数
+    LoraError getStatusRaw(uint8_t& status);
 
 private:
     bool findChip(const char* verStr);
@@ -218,13 +224,16 @@ private:
     LoraError fixSensitivity();
     LoraError setRx(uint32_t timeout);
     LoraError setTx(uint32_t timeout);
+    LoraError setTCXO(fp32 voltage, uint32_t delay);
+    LoraError clearDeviceErrors();
 
 // 通信相关
     // 次级抽象
     LoraError SPIreadRegister(uint16_t regsite, size_t numBytes, uint8_t* rxBuff);
     LoraError SPIwriteStream(uint16_t cmd, const uint8_t* data, size_t numBytes);
     LoraError SPIwriteRegister(uint16_t regsite, size_t numBytes, const uint8_t* txData);
-    LoraError SPIwriteBuffer(const uint8_t* data, uint8_t numBytes);
+    LoraError SPIwriteBuffer(const uint8_t* data, uint8_t numBytes, uint8_t offset);
+    // LoraError SPIwriteBuffer(const uint8_t* data, uint8_t numBytes);
     LoraError SPIreadStream(uint8_t opcode, uint8_t* data, size_t numBytes, bool isUseDummy = true);
     LoraError SPIreadBuffer(uint8_t* data, uint8_t numBytes, uint8_t offset);
 

@@ -47,11 +47,13 @@ LoRa::LoraError SX1268::beginLoRa(const ConfigLoRa_t& config){
     m_currentLimit = 140.0f;
     m_power = config.power;
     m_frequency = config.frequency;
+    m_tcxoVoltage = 2.2f;
 
     // modSetup ↓
     if(!findChip(m_chipType)){
         return LoraError::ChipNotFound;
     }
+    LORA_TRY(setTCXO(m_tcxoVoltage, 5000));
     LORA_TRY(configLoRa());
     // modSetup ↑
 
@@ -226,30 +228,58 @@ LoRa::LoraError SX1268::standby(StandbyMode mode) {
  * @retval 其他错误 待机、配置、SPI、BUSY 或发送清理失败。
  * @note 本函数为阻塞式接口，等待期间通过 osThreadYield() 让出 CPU。
  */
-LoRa::LoraError SX1268::transmit(const uint8_t* data, size_t len, uint8_t addr){
+
+LoRa::LoraError SX1268::transmit(
+    const uint8_t* data,
+    size_t len,
+    uint8_t addr)
+{
     LORA_TRY(standby(RC));
-    if(len > SX126X_MAX_PACKET_LENGTH) return LoraError::PacketTooLong;
-    uint32_t timeout = 5 + (getTimeOnAir(len) * 5) / 1000;
+
+    if (len > SX126X_MAX_PACKET_LENGTH) {
+        return LoraError::PacketTooLong;
+    }
+    const uint32_t timeout = 3000U;
 
     LORA_TRY(startTransmit(data, len, addr));
-
-    uint8_t modem;
-    LORA_TRY(getPacketType(&modem));
-
-
-    bool softTimeout = false;
     uint32_t start = HAL_GetTick();
-    while(true){
-        osThreadYield();
-        if (HAL_GetTick() - start > timeout ){
+
+    while(true)
+    {
+        volatile uint32_t pa11_mode =
+        (GPIOA->MODER >> 22) & 0x03;
+        const uint16_t irq = getIrqFlags();
+
+        if((irq & SX126X_IRQ_TX_DONE) != 0U)
+        {
+            printf("TX_DONE by IRQ status\r\n");
+            break;
+        }
+
+        if((irq & SX126X_IRQ_TIMEOUT) != 0U)
+        {
+            printf("HW TX timeout\r\n");
             finishTransmit();
             return LoraError::TxTimeOut;
         }
-        if(isGetIrq()){
-            break;
+
+        if(HAL_GetTick() - start > timeout)
+        {
+            printf(
+                "SW timeout: DIO1=%u IRQ=0x%04X timeout=%lu\r\n",
+                isGetIrq(),
+                getIrqFlags(),
+                timeout
+            );
+
+            finishTransmit();
+            return LoraError::TxTimeOut;
         }
+
+        osDelay(1);
+    
     }
-    return (finishTransmit());
+    return finishTransmit();
 }
 
 
@@ -282,7 +312,7 @@ LoRa::LoraError SX1268::receive(uint8_t* data, size_t len, uint32_t timeout){
     if ((timeoutTicks64 == 0ULL) || (timeoutTicks64 >= 0xFFFFFFULL)) return LoraError::BadParam; 
     const uint32_t timeoutValue = static_cast<uint32_t>(timeoutTicks64);
     
-    LORA_TRY(startReceive(timeoutValue));
+    LORA_TRY(startReceive(len));
 
     constexpr uint32_t RX_TIMEOUT_MARGIN_MS = 5U;
     bool softTimeout = false;
@@ -317,7 +347,9 @@ LoRa::LoraError SX1268::startTransmit(const uint8_t* data, size_t len, uint8_t a
 
     LORA_TRY(setBufferBaseAddress(0x00, 0x00));
 
-    LORA_TRY(SPIwriteBuffer(data, len));      
+    LORA_TRY(SPIwriteBuffer(data, static_cast<uint8_t>(len), 0x00));
+
+    // LORA_TRY(SPIwriteBuffer(data, len));      
 
     LORA_TRY(clearIrqStatus());
 
@@ -350,15 +382,77 @@ LoRa::LoraError SX1268::startReceive(size_t len){
     return(launchMode(Rx));
 }
 
+// 配置DIO3为外部32MHzTCXO的电源控制，并设置TCXO启动等待时间
+LoRa::LoraError SX1268::setTCXO(fp32 voltage, uint32_t delay){
+    LORA_TRY(standby(RC));
+    uint16_t errors = 0U;
+    LORA_TRY(getDeviceErrors(&errors));
+    if(errors & 0x0020U) {
+        LORA_TRY(clearDeviceErrors());
+    }
+    if(fabsf(voltage - 0.0f) <= 0.001f) return(reset(true));
+    uint8_t data[4];
+    if(fabsf(voltage - 1.6f) <= 0.001f) {
+        data[0] = SX126X_DIO3_OUTPUT_1_6;
+    } else if(fabsf(voltage - 1.7f) <= 0.001f) {
+        data[0] = SX126X_DIO3_OUTPUT_1_7;
+    } else if(fabsf(voltage - 1.8f) <= 0.001f) {
+        data[0] = SX126X_DIO3_OUTPUT_1_8;
+    } else if(fabsf(voltage - 2.2f) <= 0.001f) {
+        data[0] = SX126X_DIO3_OUTPUT_2_2;
+    } else if(fabsf(voltage - 2.4f) <= 0.001f) {
+        data[0] = SX126X_DIO3_OUTPUT_2_4;
+    } else if(fabsf(voltage - 2.7f) <= 0.001f) {
+        data[0] = SX126X_DIO3_OUTPUT_2_7;
+    } else if(fabsf(voltage - 3.0f) <= 0.001f) {
+        data[0] = SX126X_DIO3_OUTPUT_3_0;
+    } else if(fabsf(voltage - 3.3f) <= 0.001f) {
+        data[0] = SX126X_DIO3_OUTPUT_3_3;
+    } else {
+        return(LoraError::InvalidTXCOVoltage);
+    }
+
+    uint32_t delayValue = (delay * 8U) / 125U;
+    data[1] = (uint8_t)((delayValue >> 16) & 0xFF);
+    data[2] = (uint8_t)((delayValue >> 8) & 0xFF);
+    data[3] = (uint8_t)(delayValue & 0xFF);
+    m_tcxoDelay = delay;
+
+    return(SPIwriteStream(SX126X_CMD_SET_DIO3_AS_TCXO_CTRL, data, 4));
+}
+
 //------------------------------------------------------------------------------
 // Hand Helper
 //------------------------------------------------------------------------------
 
-LoRa::LoraError SX1268::finishTransmit() {
-    LORA_TRY(standby(RC));
+LoRa::LoraError SX1268::finishTransmit()
+{
+    printf("finishTx: enter\r\n");
 
-    return(clearIrqStatus());
+    printf("finishTx: before standby, BUSY=%u\r\n",
+           static_cast<unsigned>(isBusy()));
+
+    LoRa::LoraError state = standby(RC);
+
+    printf("finishTx: after standby, state=%u BUSY=%u\r\n",
+           static_cast<unsigned>(state),
+           static_cast<unsigned>(isBusy()));
+
+    if(state != LoraError::OK) {
+        return state;
+    }
+
+    printf("finishTx: before clearIrq\r\n");
+
+    state = clearIrqStatus();
+
+    printf("finishTx: after clearIrq, state=%u BUSY=%u\r\n",
+           static_cast<unsigned>(state),
+           static_cast<unsigned>(isBusy()));
+
+    return state;
 }
+
 
 LoRa::LoraError SX1268::finishReceive() {
     LORA_TRY(standby(RC));
@@ -444,6 +538,11 @@ LoRa::LoraError SX1268::readData(uint8_t* data, size_t len)
     return cleanupState;
 }
 
+LoRa::LoraError SX1268::clearDeviceErrors(){
+    const uint8_t data[2] = {SX126X_CMD_NOP, SX126X_CMD_NOP};
+    return(SPIwriteStream(SX126X_CMD_CLEAR_DEVICE_ERRORS, data, 2));
+}
+
 
 //==============================================================================
 // LoRa参数获取（Get）
@@ -527,10 +626,10 @@ LoRa::LoraError SX1268::launchMode(RfMode mode) {
       setRfMode(Rx);
       LORA_TRY(setRx(64000U));
     } break;
-  
+    
     case(RfMode::Tx): {
       setRfMode(Tx);
-      LORA_TRY(setTx(0));
+      LORA_TRY(setTx(64000U));
       LORA_TRY(waitBusy());
     } break;
     
@@ -904,8 +1003,34 @@ LoRa::LoraError SX1268::SPIreadStream(uint8_t opcode, uint8_t* data, size_t numB
     }
 }
 
-LoRa::LoraError SX1268::SPIwriteBuffer(const uint8_t* data, uint8_t numBytes){
-    return(SPIwriteStream(SX126X_CMD_WRITE_BUFFER, data, numBytes));
+LoRa::LoraError SX1268::SPIwriteBuffer(
+    const uint8_t* data,
+    uint8_t numBytes,
+    uint8_t offset
+)
+{
+    if ((numBytes > 0U) && (data == nullptr)) {
+        return LoraError::BadParam;
+    }
+
+    if ((static_cast<uint16_t>(offset) + numBytes) > 256U) {
+        return LoraError::BadParam;
+    }
+
+    const uint8_t cmd[] = {
+        SX126X_CMD_WRITE_BUFFER,
+        offset
+    };
+
+    return SPITransferStream(
+        cmd,
+        sizeof(cmd),
+        true,
+        data,
+        nullptr,
+        numBytes,
+        true
+    );
 }
 
 LoRa::LoraError SX1268::SPIreadBuffer(uint8_t* data, uint8_t numBytes, uint8_t offset) {
@@ -1081,5 +1206,23 @@ LoRa::LoraError SX1268::waitBusy() {
             return LoraError::BusyTimeout;
         }
     }
+    return LoraError::OK;
+}
+
+// 抓虫临时函数
+LoRa::LoraError SX1268::getStatusRaw(uint8_t& status)
+{
+    uint8_t tx[2] = {
+        0xC0U,
+        0x00U
+    };
+
+    uint8_t rx[2] = {};
+
+    LORA_TRY(waitBusy());
+    LORA_TRY(spiSendReceiveBuffer(tx, sizeof(tx), rx));
+
+    status = rx[1];
+
     return LoraError::OK;
 }

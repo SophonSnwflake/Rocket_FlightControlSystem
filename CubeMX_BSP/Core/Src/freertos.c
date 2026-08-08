@@ -51,15 +51,29 @@
 osThreadId_t RocketHandle;
 const osThreadAttr_t Rocket_attributes = {
   .name = "Rocket",
-  .stack_size = 2048 * 4,
+  .stack_size = 1024 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for GNSS */
 osThreadId_t GNSSHandle;
 const osThreadAttr_t GNSS_attributes = {
   .name = "GNSS",
-  .stack_size = 1024 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for IMU */
+osThreadId_t IMUHandle;
+const osThreadAttr_t IMU_attributes = {
+  .name = "IMU",
+  .stack_size = 1024 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for LOG */
+osThreadId_t LOGHandle;
+const osThreadAttr_t LOG_attributes = {
+  .name = "LOG",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 
 /* Private function prototypes -----------------------------------------------*/
@@ -69,6 +83,8 @@ const osThreadAttr_t GNSS_attributes = {
 
 void rocket_task(void *argument);
 void GNSS_task(void *argument);
+void imu_task(void *argument);
+void log_task(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -104,6 +120,12 @@ void MX_FREERTOS_Init(void) {
 
   /* creation of GNSS */
   GNSSHandle = osThreadNew(GNSS_task, NULL, &GNSS_attributes);
+
+  /* creation of IMU */
+  IMUHandle = osThreadNew(imu_task, NULL, &IMU_attributes);
+
+  /* creation of LOG */
+  LOGHandle = osThreadNew(log_task, NULL, &LOG_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -149,6 +171,42 @@ __weak void GNSS_task(void *argument)
     osDelay(1);
   }
   /* USER CODE END GNSS_task */
+}
+
+/* USER CODE BEGIN Header_imu_task */
+/**
+* @brief Function implementing the IMU thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_imu_task */
+__weak void imu_task(void *argument)
+{
+  /* USER CODE BEGIN imu_task */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END imu_task */
+}
+
+/* USER CODE BEGIN Header_log_task */
+/**
+* @brief Function implementing the LOG thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_log_task */
+__weak void log_task(void *argument)
+{
+  /* USER CODE BEGIN log_task */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END log_task */
 }
 
 /* Private application code --------------------------------------------------*/

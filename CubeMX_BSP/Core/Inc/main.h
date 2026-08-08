@@ -67,8 +67,6 @@ void Error_Handler(void);
 #define BMI088_GYRO_CSB10_GPIO_Port GPIOB
 #define BMI088_ACCEL_CS_Pin GPIO_PIN_12
 #define BMI088_ACCEL_CS_GPIO_Port GPIOB
-#define LORA_DIO1_Pin GPIO_PIN_11
-#define LORA_DIO1_GPIO_Port GPIOA
 #define LORA_RXEN_Pin GPIO_PIN_12
 #define LORA_RXEN_GPIO_Port GPIOA
 #define LORA_TXEN_Pin GPIO_PIN_15

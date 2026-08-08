@@ -180,6 +180,7 @@ FlightLogger::FlightLoggerError FlightLogger::writeSingleSubscription(ULogMessag
         return FlightLoggerError::InvalidArgument;
     }
     ulog_message_add_logged_s adds{};
+    const uint16_t actualNameLength = nameLength - 1U;
     if (actualNameLength > sizeof(adds.message_name))
     {
         return FlightLoggerError::InvalidArgument;
@@ -189,8 +190,6 @@ FlightLogger::FlightLoggerError FlightLogger::writeSingleSubscription(ULogMessag
     memcpy(adds.message_name, messageName, nameLength - 1);
     adds.multi_id = 0U;
     adds.msg_size = nameLength + 1U + 2U - 1U;
-
-    const uint16_t actualNameLength = nameLength - 1U;
 
     const uint32_t writeLength = static_cast<uint32_t>(offsetof(ulog_message_add_logged_s, message_name))+ nameLength - 1;
     const RocketLogWriter::FlashLogError result =

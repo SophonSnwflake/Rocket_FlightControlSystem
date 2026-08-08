@@ -319,6 +319,16 @@ extern "C" {
 #define SX126X_IRQ_ALL                                 0b0100001111111111  //  14    0   all interrupts
 #define SX126X_IRQ_NONE                                0b0000000000000000  //  14    0   no interrupts
 
+//SX126X_CMD_SET_DIO3_AS_TCXO_CTRL
+#define SX126X_DIO3_OUTPUT_1_6                         0x00        //  7     0   DIO3 voltage output for TCXO: 1.6 V
+#define SX126X_DIO3_OUTPUT_1_7                         0x01        //  7     0                                 1.7 V
+#define SX126X_DIO3_OUTPUT_1_8                         0x02        //  7     0                                 1.8 V
+#define SX126X_DIO3_OUTPUT_2_2                         0x03        //  7     0                                 2.2 V
+#define SX126X_DIO3_OUTPUT_2_4                         0x04        //  7     0                                 2.4 V
+#define SX126X_DIO3_OUTPUT_2_7                         0x05        //  7     0                                 2.7 V
+#define SX126X_DIO3_OUTPUT_3_0                         0x06        //  7     0                                 3.0 V
+#define SX126X_DIO3_OUTPUT_3_3                         0x07        //  7     0                                 3.3 V
+
 //SX126X_CMD_CALIBRATE_IMAGE
 #define SX126X_CAL_IMG_430_MHZ_1                       0x6B
 #define SX126X_CAL_IMG_430_MHZ_2                       0x6F

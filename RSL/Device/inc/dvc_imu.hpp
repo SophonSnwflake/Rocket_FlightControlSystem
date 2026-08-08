@@ -38,9 +38,8 @@ public:
     Vector3f getAccelRawData(){return m_accelRawData;}
     Vector3f getMagnetRawData(){return m_magnetRawData;}
 
-// protected:
-//仅供调试
-public:
+protected:
+
     IMU(AHRS *ahrs);
     virtual bool readRawData() = 0;
     virtual void dataCalibration() = 0;
@@ -141,9 +140,8 @@ public:
     bool init() override;
     uint32_t getBusTimeoutCount() {return m_busTimeoutCount;}
 
-// protected:
-//仅供调试
-public:
+protected:
+
 
     bool readRawData() override;
     void dataCalibration() override;

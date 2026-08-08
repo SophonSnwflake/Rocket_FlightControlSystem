@@ -1,4 +1,7 @@
 #include "crt_rocket.hpp"
+#include "stm32f4xx_hal_gpio.h"
+
+#include "stm32f4xx_hal_gpio.h"
 
 static const char* resultName(Flash::Result r)
 {
@@ -29,17 +32,25 @@ Rocket::Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barom
     m_flash(flash),
     m_lora(lora),
     m_barometer(barometer),
-    m_buzzer(buzzer)
+    m_buzzer(buzzer),
+    isInitedCompleted(false)
 
 {}
 
 void Rocket::Init(){
+    if(isInitedCompleted) return;
     DWT_Init();
     SPI_BusInit(&hspi1);
     SPI_BusInit(&hspi2);
     SPI_Init(&hspi1, nullptr);
     UART_Init(&huart1,nullptr,100);
     UART_Init(&huart2,uart2Callback,1024);
+
+    printf("Rocket Flight Control System is Online!\r\n");
+    printf("Software Git Hash:\r\n");
+    printf("After\r\n");
+    printf("5dda80503932436286b3e6a3f249b4f85334145d\r\n");
+    
 
     m_buzzer->handleChipping(true);
     osDelay(80U);
@@ -66,27 +77,36 @@ void Rocket::Init(){
     }else{
         printf("LoraInitFailed!\r\n");
     }
-    // m_flash->Init();
+    m_flash->Init();
+    isInitedCompleted = true;
 
 }
 
-const uint8_t message[] = "Hello SX1268";
-bool i = false;
-void Rocket::rocketTotalLoop(){
-    // // m_imu->solveAttitude();
-    // const LoRa::LoraError error = m_lora->transmit(message, sizeof(message), 0x00U);
+bool i;
 
-    // if (error == LoRa::LoraError::OK) {
-    //     printf("TX done\r\n");
-    // } else {
-    //     printf("TX error: %u\r\n", static_cast<unsigned>(error));
-    // }
-    // printf("Hello!\r\n");
-    
+void Rocket::rocketTotalLoop()
+{
+    // m_imu->solveAttitude();
+
+    static const uint8_t message[] = "Hello SX1268";
+
+    LoRa::LoraError error =
+        m_lora->transmit(message, sizeof(message), 0x00U);
+
+    if (error == LoRa::LoraError::OK) {
+        printf("TX done\r\n");
+    } else {
+        printf("TX error: %u\r\n", static_cast<unsigned>(error));
+    }
+
+    printf("Hello!\r\n");
+
     // m_buzzer->handleChipping(i);
     // osDelay(1000U);
-    // i = !i;
+}
 
+void Rocket::imuLoop(){
+    m_imu->solveAttitude();
 }
 
 

@@ -34,15 +34,17 @@ private:
     SX1268 *m_lora;
     BMP388 *m_barometer;
     ActiveBuzzer *m_buzzer;
-
-private:
     LaunchPhase m_launchPhase;
+private:
+    bool isInitedCompleted = false;
 
 public:
     Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barometer, ActiveBuzzer *buzzer);
     virtual ~Rocket() = default;
+    bool isInitCompleted() {return isInitedCompleted;}
     void Init();
     void rocketTotalLoop();
+    void imuLoop();
     bool selfTest();
                
 };
