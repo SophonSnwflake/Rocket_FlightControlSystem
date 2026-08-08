@@ -1,3 +1,15 @@
+/**
+ ******************************************************************************
+ * @file           : alg_ahrs.hpp
+ * @brief          : header file for alg_ahrs.cpp
+ ******************************************************************************
+ * @attention
+ * Copied from Gmaster's GSRL library, with modifications for the Rocket Flight Control project.
+ * Copyright (c) 2026 GMaster
+ * All rights reserved.
+ *
+ ******************************************************************************
+ */
 #pragma once
 
 #include "RSL_common.h"

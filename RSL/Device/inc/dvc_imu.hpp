@@ -1,3 +1,16 @@
+/**
+ ******************************************************************************
+ * @file           : dvc_imu.cpp
+ * @brief          : IMU解析库
+ ******************************************************************************
+ * @attention
+ *
+ * Copied from Gmaster's GSRL library, with modifications for the Rocket Flight Control project.
+ * Copyright (c) 2026 GMaster
+ * All rights reserved.
+ *
+ ******************************************************************************
+ */
 #pragma once    
 
 #include "RSL_common.h"
