@@ -44,6 +44,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     Device/GNSS/inc
     Driver/inc
     Middleware/inc
+    Aggrement/inc
 )
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC

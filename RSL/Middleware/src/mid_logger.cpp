@@ -10,8 +10,7 @@ FlightLogger::FlightLogger(RocketLogWriter *LogWriter) :
 {    
 }
 
-FlightLogger::FlightLoggerError
-FlightLogger::start(uint64_t timestampUs)
+FlightLogger::FlightLoggerError FlightLogger::start(uint64_t timestampUs)
 {
     if (!m_LogWriter->isPrepared())
     {

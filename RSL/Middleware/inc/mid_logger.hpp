@@ -2,8 +2,8 @@
 
 #include "RSL_common.h"
 #include "mid_logger_writer.hpp"
-#include "mid_protocal.hpp"
-#include "mid_logger_message.hpp"
+#include "agr_logger_protocal.hpp"
+#include "agr_logger_message.hpp"
 
 #define LOG_TRY(expr)                                      \
     do                                                     \

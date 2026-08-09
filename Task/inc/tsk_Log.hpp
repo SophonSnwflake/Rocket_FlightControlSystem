@@ -15,16 +15,13 @@ bool submitGNSS(const GNSSMessage& message);
 
 bool submitAHRS(const AHRSMessage& message);
 
-bool submitFlightEstimate(
-    const FlightEstimateMessage& message);
+bool submitFlightEstimate(const FlightEstimateMessage& message);
 
-bool submitFlightState(
-    const FlightStateMessage& message);
+bool submitFlightState(const FlightStateMessage& message);
 
 bool submitPower(const PowerMessage& message);
 
-bool submitSystemHealth(
-    const SystemHealthMessage& message);
+bool submitSystemHealth(const SystemHealthMessage& message);
 
 // FreeRTOS Logger Task 入口
 void LoggerTask(void* argument);
