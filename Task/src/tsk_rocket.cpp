@@ -6,6 +6,8 @@
 #include "drv_uart.h"
 #include "dvc_lora.hpp"
 #include "dvc_barometer.hpp"
+#include "mid_logger_writer.hpp"
+#include "mid_logger.hpp"
 
 using Vector3f = RSLMath::Vector3f;
 using Matrix33f = RSLMath::Matrix33f; 
@@ -28,6 +30,10 @@ BMI088 imu(&myEKF,
 NEOM9N_UART gnss;
 
 W25Q128 flash(hspi1, GPIOA, GPIO_PIN_4);
+
+RocketLog::RocketLogWriter loggerWriter(&flash);
+
+RocketLog::FlightLogger logger(&loggerWriter);
 
 SX1268::SX1268PinConfig loraConfig{
     &hspi2,
@@ -60,7 +66,7 @@ BMP388::BMP388Config barometerConfig{
 ActiveBuzzer buzzer(GPIOB, GPIO_PIN_2, false);
 
 BMP388 barometer(barometerHandle, barometerConfig);
-Rocket rocket(&imu, &gnss, nullptr, &lora, &barometer, &buzzer);
+Rocket rocket(&imu, &gnss, nullptr, &lora, &barometer, &buzzer, &logger);
 
 
 extern uint16_t g_last_size;

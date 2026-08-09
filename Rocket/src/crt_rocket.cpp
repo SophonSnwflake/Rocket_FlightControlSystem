@@ -26,32 +26,36 @@ static const char* resultName(Flash::Result r)
 extern volatile uint16_t g_last_size;
 extern volatile uint32_t g_callback_count;
 
-Rocket::Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barometer, ActiveBuzzer *buzzer):
+Rocket::Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barometer, ActiveBuzzer *buzzer, RocketLog::FlightLogger *logger):
     m_imu(imu),
     m_gnss(gnss),
     m_flash(flash),
     m_lora(lora),
     m_barometer(barometer),
     m_buzzer(buzzer),
-    isInitedCompleted(false)
+    m_logger(logger),
+    m_isInitedCompleted(false),
+    m_isLoggerInitCompleted(false)
+    
 
 {}
 
-void Rocket::Init(){
-    if(isInitedCompleted) return;
+Rocket::RocketError Rocket::Init(){
+    if(m_isInitedCompleted) return RocketError::HasInited;
     DWT_Init();
     SPI_BusInit(&hspi1);
     SPI_BusInit(&hspi2);
     SPI_Init(&hspi1, nullptr);
     UART_Init(&huart1,nullptr,100);
     UART_Init(&huart2,uart2Callback,1024);
+    RocketError state;
+    bool isDeviceInithasError = false;
 
     printf("Rocket Flight Control System is Online!\r\n");
     printf("Software Git Hash:\r\n");
     printf("After\r\n");
     printf("5dda80503932436286b3e6a3f249b4f85334145d\r\n");
     
-
     m_buzzer->handleChipping(true);
     osDelay(80U);
     m_buzzer->handleChipping(false);
@@ -60,8 +64,62 @@ void Rocket::Init(){
     osDelay(80U);
     m_buzzer->handleChipping(false);
 
-    // m_barometer->init();
-    // m_imu->init();
+    uint8_t initTimes = 0;
+
+
+    while(isDeviceInithasError != true && initTimes < 5){
+    // state = initIMU();
+    // if (state != RocketError::OK){isDeviceInithasError = true;}
+
+    state = initLoRa();
+    if (state != RocketError::OK){isDeviceInithasError = true;}
+
+    state = initFlash();
+    if (state != RocketError::OK){isDeviceInithasError = true;}
+    
+    initTimes ++;
+    printf("initTime:%d!\r\n", initTimes);
+    }
+
+    if (isDeviceInithasError != true){
+        printf("DeviceInitFailed!\r\n");
+        return RocketError::DeviceError;
+    }
+    else{
+        m_isInitedCompleted = true;
+        printf("DeviceInitSuccess!\r\n");
+        return RocketError::OK;
+    }
+    
+}
+
+// Rocket::RocketError Rocket::initLogger(){
+//     m_logger->
+// }
+
+Rocket::RocketError Rocket::initIMU(){
+    if(m_imu->init()){
+        printf("IMUInitSuccess!\r\n");
+        return RocketError::OK;
+    }else{
+        printf("IMUInitFailed!\r\n");
+        return RocketError::DeviceError;
+    }
+}
+
+Rocket::RocketError Rocket::initFlash(){
+    Flash::Result flashState;
+    flashState = m_flash->Init();
+    if(flashState == Flash::Result::OK){
+        printf("FlashInitSuccess!\r\n");
+        return RocketError::OK;
+    }else{
+        printf("FlashInitFailed!\r\n");
+        return RocketError::DeviceError;
+    }
+}
+
+Rocket::RocketError Rocket::initLoRa(){
     LoRa::ConfigLoRa_t loraConfig{
     434.0f,                 // frequency
     125.0f,                 // bandwidthKhz
@@ -71,15 +129,15 @@ void Rocket::Init(){
     10,                     // power
     8U                      // preambleLength
     };
-
-    if(m_lora->beginLoRa(loraConfig) == LoRa::LoraError::OK){
+    LoRa::LoraError LoRaState;
+    LoRaState = m_lora->beginLoRa(loraConfig);
+    if(LoRaState == LoRa::LoraError::OK){
         printf("LoraInitSuccess!\r\n");
+        return RocketError::OK;
     }else{
         printf("LoraInitFailed!\r\n");
+        return RocketError::DeviceError;
     }
-    m_flash->Init();
-    isInitedCompleted = true;
-
 }
 
 bool i;

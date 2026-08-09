@@ -24,10 +24,16 @@ file(GLOB_RECURSE RSL_DRIVER_SOURCES
     "Driver/src/*.cpp"
 )
 
+file(GLOB_RECURSE RSL_MIDDLEWARE_SOURCES
+    "Middleware/src/*.c"
+    "Middleware/src/*.cpp"
+)
+
 target_sources(${PROJECT_NAME} PRIVATE
     ${RSL_ALGORITHM_SOURCES}
     ${RSL_DEVICE_SOURCES}
     ${RSL_DRIVER_SOURCES}
+    ${RSL_MIDDLEWARE_SOURCES}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -37,6 +43,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     Device/define
     Device/GNSS/inc
     Driver/inc
+    Middleware/inc
 )
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC

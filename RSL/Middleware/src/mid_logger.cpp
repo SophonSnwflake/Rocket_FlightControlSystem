@@ -1,10 +1,11 @@
-#include "alg_logger.hpp"
+#include "mid_logger.hpp"
 
 namespace RocketLog  
 {             
 
 FlightLogger::FlightLogger(RocketLogWriter *LogWriter) : 
-    m_LogWriter(LogWriter)
+    m_LogWriter(LogWriter),
+    m_isStarted(false)
 
 {    
 }
@@ -35,6 +36,8 @@ FlightLogger::start(uint64_t timestampUs)
         m_lastWriterError = writerResult;
         return FlightLoggerError::WriterError;
     }
+
+    m_isStarted = true;
 
     return FlightLoggerError::OK;
 }
@@ -206,36 +209,43 @@ FlightLogger::FlightLoggerError FlightLogger::writeSingleSubscription(ULogMessag
 }
 
 FlightLogger::FlightLoggerError FlightLogger::writeIMU(IMURawMessage *imuMessage){
+    if(m_isStarted != true) return FlightLoggerError::NotStarted;
     LOG_TRY(writeData(ULogMessageId::ImuRaw, imuMessage, sizeof(*imuMessage)));
     return FlightLoggerError::OK;
 }
 
 FlightLogger::FlightLoggerError FlightLogger::writeGNSS(GNSSMessage *gnssMessage){
+    if(m_isStarted != true) return FlightLoggerError::NotStarted;
     LOG_TRY(writeData(ULogMessageId::Gnss, gnssMessage, sizeof(*gnssMessage)));
     return FlightLoggerError::OK;
 }
 
 FlightLogger::FlightLoggerError FlightLogger::writeAHRS(AHRSMessage *ahrsMessage){
+    if(m_isStarted != true) return FlightLoggerError::NotStarted;
     LOG_TRY(writeData(ULogMessageId::Ahrs, ahrsMessage, sizeof(*ahrsMessage)));
     return FlightLoggerError::OK;
 }
 
 FlightLogger::FlightLoggerError FlightLogger::writeFlightEstimate(FlightEstimateMessage *flightEstimateMessage){
+    if(m_isStarted != true) return FlightLoggerError::NotStarted;
     LOG_TRY(writeData(ULogMessageId::FlightEstimate, flightEstimateMessage, sizeof(*flightEstimateMessage)));
     return FlightLoggerError::OK;
 }
 
 FlightLogger::FlightLoggerError FlightLogger::writeFlightState(FlightStateMessage *flightStateMessage){
+    if(m_isStarted != true) return FlightLoggerError::NotStarted;
     LOG_TRY(writeData(ULogMessageId::FlightState, flightStateMessage, sizeof(*flightStateMessage)));
     return FlightLoggerError::OK;
 }
 
 FlightLogger::FlightLoggerError FlightLogger::writePower(PowerMessage *powerMessage){
+    if(m_isStarted != true) return FlightLoggerError::NotStarted;
     LOG_TRY(writeData(ULogMessageId::Power, powerMessage, sizeof(*powerMessage)));
     return FlightLoggerError::OK;
 }
 
 FlightLogger::FlightLoggerError FlightLogger::writeSystemHealth(SystemHealthMessage *systemHealthMessage){
+    if(m_isStarted != true) return FlightLoggerError::NotStarted;
     LOG_TRY(writeData(ULogMessageId::SystemHealth, systemHealthMessage, sizeof(*systemHealthMessage)));
     return FlightLoggerError::OK;
 }

@@ -1,9 +1,9 @@
 #pragma once
 
 #include "RSL_common.h"
-#include "alg_logger_writer.hpp"
-#include "alg_protocal.hpp"
-#include "alg_logger_message.hpp"
+#include "mid_logger_writer.hpp"
+#include "mid_protocal.hpp"
+#include "mid_logger_message.hpp"
 
 #define LOG_TRY(expr)                                      \
     do                                                     \
@@ -36,9 +36,11 @@ private:
     RocketLogWriter::FlashLogError m_lastWriterError;
     RocketLogWriter *m_LogWriter;
 
+    bool m_isStarted = false;
+
 public:
     FlightLogger(RocketLogWriter *LogWriter);
-    ~FlightLogger();
+    ~FlightLogger() = default;
     FlightLoggerError start(uint64_t timestampUs);
     FlightLoggerError writeIMU(IMURawMessage *imuMessage);
     FlightLoggerError writeGNSS(GNSSMessage *gnssMessage);
