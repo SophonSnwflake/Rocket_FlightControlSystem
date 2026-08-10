@@ -14,7 +14,7 @@
 #include "dvc_lora.hpp"
 #include "dvc_barometer.hpp"
 #include "dvc_buzzer.hpp"
-#include "mid_logger.hpp"
+#include "app_logger.hpp"
 #include "mid_logger_writer.hpp"
 #include <cstdint>
 

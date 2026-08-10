@@ -5,9 +5,10 @@ Rocket_FlightControl/
 ├── Application/                # 应用层，调用底层RSL库
 │   ├── Rocket/                 # 飞行器总类
 │   └── Logging/                # 日志系统类实现，封装每个message的写入函数
+│   └── Command/                # 命令系统
 │
 ├── RSL/                        # 标准库
-│   ├── Aggreement/             # 协议
+│   ├── Aggreement/             # 协议   
 │   └── Algorithm/              # 数学算法
 |   └── Dependence/             # 外部依赖库
 |   └── Device/                 # 设备
@@ -27,4 +28,29 @@ Rocket_FlightControl/
 │
 ├── CMakeLists.txt              # 总工程编译清单
 ├── CMakePresets.json           # Cmake编译配置
+```
+
+## Architecture
+
+The project follows a layered architecture:
+
+```mermaid
+flowchart TD
+    Task[Task<br/>FreeRTOS Scheduling / Queue / Notification]
+    App[Application<br/>Product-specific Business Logic]
+    RSL[RSL<br/>Reusable Software Library]
+
+    Driver[Driver<br/>MCU Peripheral & Bus Drivers]
+    Device[Device<br/>Hardware Device Drivers]
+    Middleware[Middleware<br/>Reusable Services & Protocol Components]
+    Algorithm[Algorithm<br/>Math / Control / Estimation]
+
+    Task --> App
+    Task --> RSL
+    App --> RSL
+
+    RSL --> Driver
+    RSL --> Device
+    RSL --> Middleware
+    RSL --> Algorithm
 ```

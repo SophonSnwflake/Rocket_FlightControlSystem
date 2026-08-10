@@ -1,7 +1,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
-#include "mid_logger.hpp"
-#include "crt_rocket.hpp"
+#include "app_logger.hpp"
+#include "app_rocket.hpp"
 
 extern Rocket rocket;
 
