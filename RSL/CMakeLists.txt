@@ -128,7 +128,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     Driver/Time/inc
     Driver/Uart/inc
     Middleware/Logger/inc
-    Aggrement/inc
+    Agrement/inc
 )
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC

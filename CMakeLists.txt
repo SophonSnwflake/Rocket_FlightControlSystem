@@ -66,6 +66,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     Application/Rocket/inc
     Application/Logging/inc
+    Application/Logging/Agreement
     Task
     Task/inc
 )
