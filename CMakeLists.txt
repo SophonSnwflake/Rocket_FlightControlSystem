@@ -51,8 +51,10 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add sources to executable
 file(GLOB_RECURSE USER_SRC
-    Rocket/*.c
-    Rocket/*.cpp
+    Application/Rocket/src/*.c
+    Application/Rocket/src/*.cpp
+    Application/Logging/src/*.c
+    Application/Logging/src/*.cpp
     Task/*.c
     Task/*.cpp
 )
@@ -62,7 +64,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    Rocket/inc
+    Application/Rocket/inc
+    Application/Logging/inc
     Task
     Task/inc
 )

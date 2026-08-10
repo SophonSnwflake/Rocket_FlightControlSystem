@@ -30,6 +30,11 @@ file(GLOB_RECURSE RSL_ALGORITHM_KALMANFILTER_SOURCES
     "Algorithm/KalmanFilter/src/*.cpp"
 )
 
+file(GLOB_RECURSE RSL_COMMAND_SOURCES
+    "Command/src/*.c"
+    "Command/src/*.cpp"
+)
+
 
 file(GLOB_RECURSE RSL_DEVICE_BAROMETER_SOURCES
     "Device/Barometer/src/*.c"
@@ -107,6 +112,8 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     Algorithm/Filter/inc
     Algorithm/General/inc
     Algorithm/KalmanFilter/inc
+
+    Command/inc
 
     Device/Barometer/inc
     Device/Buzzer/inc
