@@ -23,7 +23,7 @@ Rocket_FlightControl/
 │       ├── tsk_rocket.cpp      # 主任务循环入口
 │       ├── tsk_imu.cpp         # IMU任务
 │       ├── tsk_isr.cpp         # FreeRTOS中断回调注册函数，非任务
-│       ├── tsk_Log.cpp         # 日志任务
+│       ├── tsk_logger.cpp         # 日志任务
 │
 │
 ├── CMakeLists.txt              # 总工程编译清单

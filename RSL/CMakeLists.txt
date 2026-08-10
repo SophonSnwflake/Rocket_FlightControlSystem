@@ -87,6 +87,11 @@ file(GLOB_RECURSE RSL_MIDDLEWARE_LOGGER_SOURCES
     "Middleware/Logger/src/*.cpp"
 )
 
+file(GLOB_RECURSE RSL_MIDDLEWARE_COMMAND_SOURCES
+    "Middleware/Command/src/*.c"
+    "Middleware/Command/src/*.cpp"
+)
+
 target_sources(${PROJECT_NAME} PRIVATE
     ${RSL_ALGORITHM_AHRS_SOURCES}
     ${RSL_ALGORITHM_FILTER_SOURCES}
@@ -103,7 +108,9 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${RSL_DRIVER_SPI_SOURCES}
     ${RSL_DRIVER_TIME_SOURCES}
     ${RSL_DRIVER_UART_SOURCES}
+
     ${RSL_MIDDLEWARE_LOGGER_SOURCES}
+    ${RSL_MIDDLEWARE_COMMAND_SOURCES}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -128,6 +135,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     Driver/Time/inc
     Driver/Uart/inc
     Middleware/Logger/inc
+    Middleware/Command/inc
     Agrement/inc
 )
 
