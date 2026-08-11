@@ -47,6 +47,7 @@ private:
     BMP388 *m_barometer;
     ActiveBuzzer *m_buzzer;
     RocketLog::FlightLogger *m_logger;
+    
     LaunchPhase m_launchPhase;
     
 private:

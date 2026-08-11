@@ -1,0 +1,22 @@
+#pragma once
+
+#include "RSL_common.h"
+#include "app_rocket.hpp"
+#include "mid_command.hpp"
+
+class RocketCommand final{
+public:
+
+private:
+    Rocket& m_rocket;
+    RSL::Command::CommandEngine m_engine;
+    static void resultCallback(void* userData, const RSL::Command::CommandEngine::CommandResult& result);
+    void handleResult(const RSL::Command::CommandEngine::CommandResult& result);
+
+public:
+    RocketCommand(Rocket& rocket);
+    ~RocketCommand() = default;
+    void feed(const char* data, size_t length);
+
+
+};

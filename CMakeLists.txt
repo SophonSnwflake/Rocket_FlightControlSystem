@@ -55,6 +55,8 @@ file(GLOB_RECURSE USER_SRC
     Application/Rocket/src/*.cpp
     Application/Logging/src/*.c
     Application/Logging/src/*.cpp
+    Application/Command/src/*.c
+    Application/Command/src/*.cpp
     Task/*.c
     Task/*.cpp
 )
@@ -65,6 +67,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     Application/Rocket/inc
+    Application/Command/inc
     Application/Logging/inc
     Application/Logging/Agreement
     Task
