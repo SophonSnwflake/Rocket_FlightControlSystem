@@ -1,5 +1,6 @@
 #include <iterator>
 #include "cmd_registry.hpp"
+#include "cmd_handler.hpp"
 
 namespace Application::Command
 {
@@ -12,7 +13,7 @@ static const CommandNode phaseCommands[] =
     "set",
     "Phase Set Command",
     "set <command>",
-    nullptr,
+    handlePhaseSet,
     nullptr,
     0,
     1,

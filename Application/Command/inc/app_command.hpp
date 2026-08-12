@@ -4,6 +4,8 @@
 #include "app_rocket.hpp"
 #include "mid_command.hpp"
 
+class Rocket; 
+
 class RocketCommand final{
 public:
 

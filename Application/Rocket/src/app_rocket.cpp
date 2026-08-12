@@ -26,7 +26,7 @@ static const char* resultName(Flash::Result r)
 extern volatile uint16_t g_last_size;
 extern volatile uint32_t g_callback_count;
 
-Rocket::Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barometer, ActiveBuzzer *buzzer, RocketLog::FlightLogger *logger):
+Rocket::Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barometer, ActiveBuzzer *buzzer, RocketLog::FlightLogger *logger, RocketCommand *uartCommand):
     m_imu(imu),
     m_gnss(gnss),
     m_flash(flash),
@@ -35,7 +35,9 @@ Rocket::Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barom
     m_buzzer(buzzer),
     m_logger(logger),
     m_isInitedCompleted(false),
-    m_isLoggerInitCompleted(false)
+    m_isLoggerInitCompleted(false),
+    m_launchPhase(LaunchPhase::STANDBY),
+    m_uartCommand(uartCommand)
     
 
 {}
@@ -46,7 +48,7 @@ Rocket::RocketError Rocket::Init(){
     SPI_BusInit(&hspi1);
     SPI_BusInit(&hspi2);
     SPI_Init(&hspi1, nullptr);
-    UART_Init(&huart1,nullptr,100);
+    UART_Init(&huart1,uart1Callback,1024);
     UART_Init(&huart2,uart2Callback,1024);
     RocketError state;
     bool isDeviceInithasError = false;
@@ -140,24 +142,50 @@ Rocket::RocketError Rocket::initLoRa(){
     }
 }
 
+bool Rocket::setPhase(LaunchPhase launchPhase){
+    // m_buzzer->handleChipping(true);
+    // osDelay(80U);
+    // m_buzzer->handleChipping(false);
+    if(launchPhase == m_launchPhase){
+        return true;
+    }
+    m_launchPhase = launchPhase;
+    return true;
+}
+
+void Rocket::handleUARTmessageForCommand(const uint8_t *pRxData, uint16_t rxDataLength){
+    if (m_uartCommand == nullptr) return;
+    m_uartCommand->feed(reinterpret_cast<const char*>(pRxData), static_cast<size_t>(rxDataLength));
+}
+
+void Rocket::setUARTCommand(RocketCommand* command)
+{
+    m_uartCommand = command;
+}
+
+
 bool i;
+
+extern uint32_t uart1RxCount;
 
 void Rocket::rocketTotalLoop()
 {
+    printf("received number:%d\r\n", uart1RxCount);
+    printf("Phase: %u\r\n", static_cast<unsigned>(m_launchPhase));
     // m_imu->solveAttitude();
 
-    static const uint8_t message[] = "Hello SX1268";
+    // static const uint8_t message[] = "Hello SX1268";
 
-    LoRa::LoraError error =
-        m_lora->transmit(message, sizeof(message), 0x00U);
+    // LoRa::LoraError error =
+    //     m_lora->transmit(message, sizeof(message), 0x00U);
 
-    if (error == LoRa::LoraError::OK) {
-        printf("TX done\r\n");
-    } else {
-        printf("TX error: %u\r\n", static_cast<unsigned>(error));
-    }
+    // if (error == LoRa::LoraError::OK) {
+    //     printf("TX done\r\n");
+    // } else {
+    //     printf("TX error: %u\r\n", static_cast<unsigned>(error));
+    // }
 
-    printf("Hello!\r\n");
+    // printf("Hello!\r\n");
 
     // m_buzzer->handleChipping(i);
     // osDelay(1000U);
