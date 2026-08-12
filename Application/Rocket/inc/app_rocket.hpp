@@ -76,7 +76,8 @@ public:
     void setUARTCommand(RocketCommand* command);
     
 // 通信回调
-    void handleUARTmessageForCommand(const uint8_t *pRxData, uint16_t rxDataLength);
+    void handlePendingUARTCommand();
+    void receiveUARTCommandData(const uint8_t *pRxData, uint16_t rxDataLength);
 private:
     RocketError initLogger();
     RocketError initLoRa();

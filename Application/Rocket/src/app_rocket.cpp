@@ -83,11 +83,13 @@ Rocket::RocketError Rocket::Init(){
     printf("initTime:%d!\r\n", initTimes);
     }
 
-    if (isDeviceInithasError != true){
+    if (isDeviceInithasError)
+    {
         printf("DeviceInitFailed!\r\n");
         return RocketError::DeviceError;
     }
-    else{
+    else
+    {
         m_isInitedCompleted = true;
         printf("DeviceInitSuccess!\r\n");
         return RocketError::OK;
@@ -143,9 +145,10 @@ Rocket::RocketError Rocket::initLoRa(){
 }
 
 bool Rocket::setPhase(LaunchPhase launchPhase){
-    // m_buzzer->handleChipping(true);
-    // osDelay(80U);
-    // m_buzzer->handleChipping(false);
+    m_buzzer->handleChipping(true);
+    osDelay(80);
+    // HAL_Delay(80);
+    m_buzzer->handleChipping(false);
     if(launchPhase == m_launchPhase){
         return true;
     }
@@ -153,9 +156,34 @@ bool Rocket::setPhase(LaunchPhase launchPhase){
     return true;
 }
 
-void Rocket::handleUARTmessageForCommand(const uint8_t *pRxData, uint16_t rxDataLength){
-    if (m_uartCommand == nullptr) return;
-    m_uartCommand->feed(reinterpret_cast<const char*>(pRxData), static_cast<size_t>(rxDataLength));
+void Rocket::receiveUARTCommandData(const uint8_t* pRxData, uint16_t rxDataLength)
+{
+    if (pRxData == nullptr || rxDataLength == 0)
+        return;
+
+    if (rxDataLength > COMMAND_RX_BUFFER_SIZE)
+        return;
+
+    if (m_commandRxPending)
+        return;
+
+    memcpy(
+        m_commandRxBuffer,
+        pRxData,
+        rxDataLength
+    );
+
+    m_commandRxLength = rxDataLength;
+
+    // 一定最后再置 true
+    m_commandRxPending = true;
+}
+
+void Rocket::handlePendingUARTCommand(){
+    if (!m_commandRxPending)return;
+    m_commandRxPending = false;
+    m_uartCommand->feed(reinterpret_cast<const char*>(m_commandRxBuffer), static_cast<size_t>(m_commandRxLength));
+    
 }
 
 void Rocket::setUARTCommand(RocketCommand* command)
@@ -172,6 +200,7 @@ void Rocket::rocketTotalLoop()
 {
     printf("received number:%d\r\n", uart1RxCount);
     printf("Phase: %u\r\n", static_cast<unsigned>(m_launchPhase));
+    handlePendingUARTCommand();
     // m_imu->solveAttitude();
 
     // static const uint8_t message[] = "Hello SX1268";

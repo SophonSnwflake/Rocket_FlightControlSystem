@@ -14,5 +14,6 @@ volatile uint32_t uart1RxCount = 0;
 
 void uart1Callback(uint8_t *pRxData, uint16_t rxDataLength){
     ++uart1RxCount;
-    rocket.handleUARTmessageForCommand(pRxData, rxDataLength);
+
+    rocket.receiveUARTCommandData(pRxData, rxDataLength);
 }
