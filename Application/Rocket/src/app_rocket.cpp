@@ -42,6 +42,7 @@ Rocket::Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barom
 
 {}
 
+
 Rocket::RocketError Rocket::Init(){
     if(m_isInitedCompleted) return RocketError::HasInited;
     DWT_Init();
@@ -75,6 +76,16 @@ Rocket::RocketError Rocket::Init(){
 
     state = initLoRa();
     if (state != RocketError::OK){isDeviceInithasError = true;}
+
+    printf(
+        "flash.spiHandle = %p\r\n",
+        (void*)m_flash->getSpiHandle()
+    );
+
+    printf(
+        "flash.spiHandle->Instance = %p\r\n",
+        (void*)m_flash->getSpiHandle()->Instance
+    );
 
     state = initFlash();
     if (state != RocketError::OK){isDeviceInithasError = true;}
@@ -175,7 +186,6 @@ void Rocket::receiveUARTCommandData(const uint8_t* pRxData, uint16_t rxDataLengt
 
     m_commandRxLength = rxDataLength;
 
-    // 一定最后再置 true
     m_commandRxPending = true;
 }
 
@@ -198,8 +208,8 @@ extern uint32_t uart1RxCount;
 
 void Rocket::rocketTotalLoop()
 {
-    printf("received number:%d\r\n", uart1RxCount);
-    printf("Phase: %u\r\n", static_cast<unsigned>(m_launchPhase));
+    // printf("received number:%d\r\n", uart1RxCount);
+    // printf("Phase: %u\r\n", static_cast<unsigned>(m_launchPhase));
     handlePendingUARTCommand();
     // m_imu->solveAttitude();
 
@@ -222,6 +232,7 @@ void Rocket::rocketTotalLoop()
 
 void Rocket::imuLoop(){
     m_imu->solveAttitude();
+    
 }
 
 

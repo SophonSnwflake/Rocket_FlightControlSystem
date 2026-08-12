@@ -18,6 +18,17 @@ static const CommandNode phaseCommands[] =
     0,
     1,
     1
+    },
+
+    {
+    "get",
+    "Phase Get Command",
+    "get <command>",
+    handlePhaseGet,
+    nullptr,
+    0,
+    0,
+    0
     }
 };
 

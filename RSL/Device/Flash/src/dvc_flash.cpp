@@ -805,3 +805,8 @@ W25Q128::Result W25Q128::eraseChip(){
     }
     return waitReady(FullChipEraseTimeoutMs);
 }
+
+SPI_HandleTypeDef* W25Q128::getSpiHandle()
+{
+    return m_handleTypeDef.spiHandle;
+}

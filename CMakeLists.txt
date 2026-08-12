@@ -83,6 +83,7 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined compile options
     -fdiagnostics-color=always
+    -O2
 )
 
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE

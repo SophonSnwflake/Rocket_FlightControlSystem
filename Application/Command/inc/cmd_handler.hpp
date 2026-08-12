@@ -18,4 +18,10 @@ RSL::Command::CommandHandlerResult handlePhaseSet(
     const char* const* argv
 );
 
+RSL::Command::CommandHandlerResult handlePhaseGet(
+    void* context,
+    size_t argc,
+    const char* const* argv
+);
+
 }

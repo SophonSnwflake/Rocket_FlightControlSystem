@@ -57,10 +57,10 @@ void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(LORA_NSS_GPIO_Port, LORA_NSS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, BMI088_GYRO_CS_Pin|GPIO_PIN_1|LORA_NRST_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOB, FLASH_CS_Pin|GPIO_PIN_1|LORA_NRST_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2|BMI088_GYRO_CSB10_Pin|BMI088_ACCEL_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2|BMI088_GYRO_CS_Pin|BMI088_ACCEL_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, LORA_RXEN_Pin|LORA_TXEN_Pin, GPIO_PIN_RESET);
@@ -79,15 +79,15 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(LORA_NSS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : BMI088_GYRO_CS_Pin PB1 */
-  GPIO_InitStruct.Pin = BMI088_GYRO_CS_Pin|GPIO_PIN_1;
+  /*Configure GPIO pins : FLASH_CS_Pin PB1 */
+  GPIO_InitStruct.Pin = FLASH_CS_Pin|GPIO_PIN_1;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PB2 BMI088_GYRO_CSB10_Pin BMI088_ACCEL_CS_Pin LORA_NRST_Pin */
-  GPIO_InitStruct.Pin = GPIO_PIN_2|BMI088_GYRO_CSB10_Pin|BMI088_ACCEL_CS_Pin|LORA_NRST_Pin;
+  /*Configure GPIO pins : PB2 BMI088_GYRO_CS_Pin BMI088_ACCEL_CS_Pin LORA_NRST_Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_2|BMI088_GYRO_CS_Pin|BMI088_ACCEL_CS_Pin|LORA_NRST_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

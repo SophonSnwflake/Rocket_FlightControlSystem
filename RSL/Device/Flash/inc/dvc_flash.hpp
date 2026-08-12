@@ -107,6 +107,8 @@ public:
         return m_handleTypeDef.jedecId;
     }
 
+    SPI_HandleTypeDef* getSpiHandle();
+
 protected:
     Result doRead(uint32_t address, uint8_t* data, uint32_t length) override;
     Result doProgram(uint32_t address, const uint8_t* data, uint32_t length) override;

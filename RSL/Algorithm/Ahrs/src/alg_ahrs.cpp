@@ -44,11 +44,11 @@ const AHRS::Vector3f &AHRS::update(const Vector3f &gyro, const Vector3f &accel, 
         init();           // 子类特定初始化(纯虚函数)
         m_isAhrsInited = true;
     }
-    taskENTER_CRITICAL(); // 进入临界区, 禁止任务切换
+    // taskENTER_CRITICAL(); // 进入临界区, 禁止任务切换
     dataProcess();
     calculateMotionAccel();
     convertQuaternionToEulerAngle();
-    taskEXIT_CRITICAL(); // 退出临界区, 允许任务切换
+    // taskEXIT_CRITICAL(); // 退出临界区, 允许任务切换
     return m_eulerAngle;
 }
 

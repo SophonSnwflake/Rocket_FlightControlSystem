@@ -148,6 +148,10 @@ target_compile_features(${PROJECT_NAME} PUBLIC
     cxx_std_17
 )
 
+target_compile_options(${PROJECT_NAME} PRIVATE
+    -O2
+)
+
 target_link_libraries(${PROJECT_NAME} PUBLIC
     stm32cubemx
     CMSISDSP
