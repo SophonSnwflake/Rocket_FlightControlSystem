@@ -93,4 +93,90 @@ RSL::Command::CommandHandlerResult handlePhaseGet(void* context, size_t argc, co
 
 }
 
+RSL::Command::CommandHandlerResult handleFlashErase(void* context, std::size_t argc, const char* const* argv)
+{
+    auto* ctx =
+        static_cast<CommandContext*>(context);
+
+    if (!ctx || !ctx->rocket) {
+        return RSL::Command::CommandHandlerResult::InvalidState;
+    }
+
+    ctx->pendingAction = PendingAction::FlashErase;
+
+    if (ctx->source == Application::Command::CommandSource::UART){
+        printf("WARNING: This will erase the entire flash.\r\n""Are you sure? Type 'yes' or 'no'.\r\n");
+    }
+
+    return RSL::Command::CommandHandlerResult::OK;
+}
+
+RSL::Command::CommandHandlerResult handleYes(void* context, std::size_t argc, const char* const* argv)
+{
+    auto* ctx =
+        static_cast<CommandContext*>(context);
+
+    if (!ctx || !ctx->rocket) {
+        return RSL::Command::CommandHandlerResult::InvalidState;
+    }
+
+    const PendingAction action = ctx->pendingAction;
+
+    // 先清掉，确保一次确认只能执行一次
+    ctx->pendingAction = PendingAction::None;
+
+    switch (action) {
+
+    case PendingAction::FlashErase:
+        printf("Erasing flash...\r\n");
+        Rocket::RocketError state;
+        state = ctx->rocket->eraseAllChipForNewFlight();
+        if(state != Rocket::RocketError::OK){
+            if (ctx->source == Application::Command::CommandSource::UART){
+                printf("Flash erase failed!\r\n");
+            }
+            return RSL::Command::CommandHandlerResult::Unsupported;
+        }
+
+        if (ctx->source == Application::Command::CommandSource::UART){
+            printf("Flash erase success!\r\n");
+        }
+        
+        return RSL::Command::CommandHandlerResult::OK;
+
+    case PendingAction::SystemReboot:
+        // ctx->rocket->reboot();
+        return RSL::Command::CommandHandlerResult::OK;
+
+    case PendingAction::LogErase:
+        // return ctx->rocket->eraseLog();
+
+    case PendingAction::None:
+    default:
+        printf("No operation is waiting for confirmation.\r\n");
+        return RSL::Command::CommandHandlerResult::InvalidState;
+    }
+}
+
+RSL::Command::CommandHandlerResult handleNo(void* context, std::size_t argc, const char* const* argv)
+{
+    auto* ctx =
+        static_cast<CommandContext*>(context);
+
+    if (!ctx) {
+        return RSL::Command::CommandHandlerResult::InvalidState;
+    }
+
+    if (ctx->pendingAction == PendingAction::None) {
+        printf("Nothing to cancel.\r\n");
+        return RSL::Command::CommandHandlerResult::InvalidState;
+    }
+
+    ctx->pendingAction = PendingAction::None;
+
+    printf("Operation cancelled.\r\n");
+
+    return RSL::Command::CommandHandlerResult::OK;
+}
+
 }

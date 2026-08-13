@@ -1,4 +1,5 @@
 #include "app_rocket.hpp"
+#include "mid_logger_writer.hpp"
 #include "stm32f4xx_hal_gpio.h"
 
 #include "stm32f4xx_hal_gpio.h"
@@ -26,7 +27,15 @@ static const char* resultName(Flash::Result r)
 extern volatile uint16_t g_last_size;
 extern volatile uint32_t g_callback_count;
 
-Rocket::Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barometer, ActiveBuzzer *buzzer, RocketLog::FlightLogger *logger, RocketCommand *uartCommand):
+Rocket::Rocket(IMU *imu, 
+            GNSS *gnss, 
+            W25Q128 *flash, 
+            SX1268 *lora, 
+            BMP388 *barometer, 
+            ActiveBuzzer *buzzer, 
+            RocketLog::FlightLogger *logger, 
+            RocketLog::RocketLogWriter *loggerWriter, 
+            RocketCommand *uartCommand):
     m_imu(imu),
     m_gnss(gnss),
     m_flash(flash),
@@ -34,6 +43,7 @@ Rocket::Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barom
     m_barometer(barometer),
     m_buzzer(buzzer),
     m_logger(logger),
+    m_loggerWriter(loggerWriter),
     m_isInitedCompleted(false),
     m_isLoggerInitCompleted(false),
     m_launchPhase(LaunchPhase::STANDBY),
@@ -108,9 +118,23 @@ Rocket::RocketError Rocket::Init(){
     
 }
 
-// Rocket::RocketError Rocket::initLogger(){
-//     m_logger->
-// }
+Rocket::RocketError Rocket::initLogger()
+{
+    if (m_logger == nullptr) {
+        return RocketError::DeviceError;
+    }
+
+    const uint64_t timestampUs = static_cast<uint64_t>(HAL_GetTick()) * 1000ULL;
+
+    RocketLog::FlightLogger::FlightLoggerError loggerstate;
+    loggerstate = m_logger->start(timestampUs);
+
+    if(loggerstate != RocketLog::FlightLogger::FlightLoggerError::OK){
+        return RocketError::DeviceError;
+    }
+
+    return RocketError::OK;
+}
 
 Rocket::RocketError Rocket::initIMU(){
     if(m_imu->init()){
@@ -153,6 +177,15 @@ Rocket::RocketError Rocket::initLoRa(){
         printf("LoraInitFailed!\r\n");
         return RocketError::DeviceError;
     }
+}
+
+Rocket::RocketError Rocket::eraseAllChipForNewFlight(){
+    RocketLog::RocketLogWriter::FlashLogError state;
+    state = m_loggerWriter->prepareNewFlight();
+    if(state != RocketLog::RocketLogWriter::FlashLogError::OK){
+        return Rocket::RocketError::DeviceError;
+    }
+    return Rocket::RocketError::OK;
 }
 
 bool Rocket::setPhase(LaunchPhase launchPhase){

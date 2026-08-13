@@ -53,6 +53,7 @@ private:
     BMP388 *m_barometer;
     ActiveBuzzer *m_buzzer;
     RocketLog::FlightLogger *m_logger;
+    RocketLog::RocketLogWriter *m_loggerWriter;
     RocketCommand *m_uartCommand;
     LaunchPhase m_launchPhase = LaunchPhase::STANDBY;
     
@@ -64,7 +65,7 @@ private:
     volatile bool m_commandRxPending = false;
 
 public:
-    Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barometer, ActiveBuzzer *buzzer, RocketLog::FlightLogger *logger, RocketCommand *uartCommand);
+    Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barometer, ActiveBuzzer *buzzer, RocketLog::FlightLogger *logger, RocketLog::RocketLogWriter *loggerWriter, RocketCommand *uartCommand);
     virtual ~Rocket() = default;
     bool isInitCompleted() {return m_isInitedCompleted;}
     RocketError Init();
@@ -74,12 +75,15 @@ public:
     LaunchPhase getPhase(){return m_launchPhase;}
     bool setPhase(LaunchPhase launchPhase);
     void setUARTCommand(RocketCommand* command);
-    
+    RocketError initLogger();
+    RocketError eraseAllChipForNewFlight();
+
 // 通信回调
     void handlePendingUARTCommand();
     void receiveUARTCommandData(const uint8_t *pRxData, uint16_t rxDataLength);
+    
 private:
-    RocketError initLogger();
+    
     RocketError initLoRa();
     RocketError initFlash();
     RocketError initIMU();

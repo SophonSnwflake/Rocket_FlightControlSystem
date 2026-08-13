@@ -66,7 +66,7 @@ BMP388::BMP388Config barometerConfig{
 ActiveBuzzer buzzer(GPIOB, GPIO_PIN_2, false);
 
 BMP388 barometer(barometerHandle, barometerConfig);
-Rocket rocket(&imu, &gnss, &flash, &lora, &barometer, &buzzer, &logger, nullptr);
+Rocket rocket(&imu, &gnss, &flash, &lora, &barometer,&buzzer,&logger,&loggerWriter,nullptr);
 
 RocketCommand uartCommand(rocket, Application::Command::CommandSource::UART);
 
@@ -78,15 +78,6 @@ extern "C" void rocket_task(void *argument)
     TickType_t last_wake_time = xTaskGetTickCount();
     rocket.setUARTCommand(&uartCommand);
     rocket.Init();
-
-    printf(
-    "SystemCoreClock = %lu Hz\r\n"
-    "SYSCLK          = %lu Hz\r\n"
-    "HCLK            = %lu Hz\r\n",
-    SystemCoreClock,
-    HAL_RCC_GetSysClockFreq(),
-    HAL_RCC_GetHCLKFreq()
-    );
 
     while (true)
     {

@@ -32,6 +32,20 @@ static const CommandNode phaseCommands[] =
     }
 };
 
+static const CommandNode loggerCommands[] =
+{
+{
+    "eraseall",
+    "[DANGER!]EraseALLChip",
+    "eraseall",
+    handleFlashErase,
+    nullptr,
+    0,
+    0,
+    0
+    }
+};
+
 static const CommandNode rocketCommands[] =
 {
     {
@@ -41,6 +55,16 @@ static const CommandNode rocketCommands[] =
     nullptr,
     phaseCommands,
     std::size(phaseCommands),
+    0,
+    0
+    },
+    {
+    "logger",
+    "logger Command",
+    "logger <command>",
+    nullptr,
+    loggerCommands,
+    std::size(loggerCommands),
     0,
     0
     }
@@ -58,7 +82,27 @@ static const CommandNode rootCommands[] =
         std::size(rocketCommands),
         0,
         0
-    }
+    },
+    {
+        "yes",
+        "Confirm pending operation",
+        "yes",
+        handleYes,
+        nullptr,
+        0,
+        0,
+        0
+    },
+    {
+        "no",
+        "Cancel pending operation",
+        "no",
+        handleNo,
+        nullptr,
+        0,
+        0,
+        0
+    },
 };
 
 const CommandNode* getRootCommands()
