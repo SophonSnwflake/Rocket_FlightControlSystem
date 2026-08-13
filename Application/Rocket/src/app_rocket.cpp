@@ -1,5 +1,5 @@
 #include "app_rocket.hpp"
-#include "mid_logger_writer.hpp"
+#include "mid_logger.hpp"
 #include "stm32f4xx_hal_gpio.h"
 
 #include "stm32f4xx_hal_gpio.h"
@@ -34,7 +34,7 @@ Rocket::Rocket(IMU *imu,
             BMP388 *barometer, 
             ActiveBuzzer *buzzer, 
             RocketLog::FlightLogger *logger, 
-            RocketLog::RocketLogWriter *loggerWriter, 
+            RocketLog::RocketLogger *loggerWriter, 
             RocketCommand *uartCommand):
     m_imu(imu),
     m_gnss(gnss),
@@ -180,9 +180,9 @@ Rocket::RocketError Rocket::initLoRa(){
 }
 
 Rocket::RocketError Rocket::eraseAllChipForNewFlight(){
-    RocketLog::RocketLogWriter::FlashLogError state;
+    RocketLog::RocketLogger::FlashLogError state;
     state = m_loggerWriter->prepareNewFlight();
-    if(state != RocketLog::RocketLogWriter::FlashLogError::OK){
+    if(state != RocketLog::RocketLogger::FlashLogError::OK){
         return Rocket::RocketError::DeviceError;
     }
     return Rocket::RocketError::OK;
@@ -267,5 +267,3 @@ void Rocket::imuLoop(){
     m_imu->solveAttitude();
     
 }
-
-

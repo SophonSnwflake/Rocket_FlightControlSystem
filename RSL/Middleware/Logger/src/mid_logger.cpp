@@ -1,9 +1,9 @@
-#include "mid_logger_writer.hpp"
+#include "mid_logger.hpp"
 
 namespace RocketLog
 {
 
-RocketLogWriter::RocketLogWriter(Flash *flash) :
+RocketLogger::RocketLogger(Flash *flash) :
     m_writeAddress(0U),
     // m_bytesWritten(0U),
     m_bufferedLength(0U),
@@ -13,7 +13,7 @@ RocketLogWriter::RocketLogWriter(Flash *flash) :
 {
 }
 
-RocketLogWriter::FlashLogError RocketLogWriter::prepareNewFlight(){
+RocketLogger::FlashLogError RocketLogger::prepareNewFlight(){
     Flash::Result result;
     Flash::Geometry temGeometry;
     temGeometry = m_flash->geometry();
@@ -31,7 +31,7 @@ RocketLogWriter::FlashLogError RocketLogWriter::prepareNewFlight(){
     return FlashLogError::OK;
 }
 
-RocketLogWriter::FlashLogError RocketLogWriter::append(uint8_t *data, uint32_t length){
+RocketLogger::FlashLogError RocketLogger::append(uint8_t *data, uint32_t length){
     // 状态参量
     FlashLogError state;
 
@@ -70,7 +70,7 @@ RocketLogWriter::FlashLogError RocketLogWriter::append(uint8_t *data, uint32_t l
 
 }
 
-RocketLogWriter::FlashLogError RocketLogWriter::flush(){
+RocketLogger::FlashLogError RocketLogger::flush(){
     if(m_bufferedLength == 0) return FlashLogError::OK;
     if(m_writeAddress >= m_flashCapacity)return FlashLogError::StorageFull;
 
@@ -95,7 +95,7 @@ RocketLogWriter::FlashLogError RocketLogWriter::flush(){
     return FlashLogError::OK;
 }
 
-uint32_t RocketLogWriter::remainingCapacity() const
+uint32_t RocketLogger::remainingCapacity() const
 {
     if (m_writeAddress > m_flashCapacity)
     {
@@ -113,7 +113,7 @@ uint32_t RocketLogWriter::remainingCapacity() const
     return remaining - m_bufferedLength;
 }
 
-Flash::Result RocketLogWriter::lastFlashResult() const
+Flash::Result RocketLogger::lastFlashResult() const
 {
     return m_lastFlashResult;
 }

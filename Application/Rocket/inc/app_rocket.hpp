@@ -16,7 +16,7 @@
 #include "dvc_barometer.hpp"
 #include "dvc_buzzer.hpp"
 #include "app_logger.hpp"
-#include "mid_logger_writer.hpp"
+#include "mid_logger.hpp"
 #include <cstdint>
 
 class RocketCommand; 
@@ -53,7 +53,7 @@ private:
     BMP388 *m_barometer;
     ActiveBuzzer *m_buzzer;
     RocketLog::FlightLogger *m_logger;
-    RocketLog::RocketLogWriter *m_loggerWriter;
+    RocketLog::RocketLogger *m_loggerWriter;
     RocketCommand *m_uartCommand;
     LaunchPhase m_launchPhase = LaunchPhase::STANDBY;
     
@@ -65,7 +65,7 @@ private:
     volatile bool m_commandRxPending = false;
 
 public:
-    Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barometer, ActiveBuzzer *buzzer, RocketLog::FlightLogger *logger, RocketLog::RocketLogWriter *loggerWriter, RocketCommand *uartCommand);
+    Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barometer, ActiveBuzzer *buzzer, RocketLog::FlightLogger *logger, RocketLog::RocketLogger *loggerWriter, RocketCommand *uartCommand);
     virtual ~Rocket() = default;
     bool isInitCompleted() {return m_isInitedCompleted;}
     RocketError Init();

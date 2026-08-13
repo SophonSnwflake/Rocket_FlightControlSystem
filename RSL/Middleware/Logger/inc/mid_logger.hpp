@@ -7,7 +7,7 @@
 
 namespace RocketLog
 {
-class RocketLogWriter final{
+class RocketLogger final{
 public:
     enum class FlashLogError{
         OK = 0,
@@ -30,8 +30,8 @@ private:
     bool m_isPrepared        = false;  // 是否已经准备好（是否已经全片擦除）
 
 public:
-    RocketLogWriter(Flash *flash);
-    ~RocketLogWriter() = default;
+    RocketLogger(Flash *flash);
+    ~RocketLogger() = default;
 
     FlashLogError prepareNewFlight();
     FlashLogError append(uint8_t *data, uint32_t length);

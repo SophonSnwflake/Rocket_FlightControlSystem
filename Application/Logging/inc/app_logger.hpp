@@ -1,7 +1,7 @@
 #pragma once
 
 #include "RSL_common.h"
-#include "mid_logger_writer.hpp"
+#include "mid_logger.hpp"
 #include "agr_logger_protocal.hpp"
 #include "agr_logger_message.hpp"
 
@@ -33,13 +33,13 @@ public:
     };
 
 private:
-    RocketLogWriter::FlashLogError m_lastWriterError;
-    RocketLogWriter *m_LogWriter;
+    RocketLogger::FlashLogError m_lastWriterError;
+    RocketLogger *m_LogWriter;
 
     bool m_isStarted = false;
 
 public:
-    FlightLogger(RocketLogWriter *LogWriter);
+    FlightLogger(RocketLogger *LogWriter);
     ~FlightLogger() = default;
     FlightLoggerError start(uint64_t timestampUs);
     FlightLoggerError writeIMU(IMURawMessage *imuMessage);

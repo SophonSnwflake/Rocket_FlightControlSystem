@@ -3,7 +3,7 @@
 namespace RocketLog  
 {             
 
-FlightLogger::FlightLogger(RocketLogWriter *LogWriter) : 
+FlightLogger::FlightLogger(RocketLogger *LogWriter) : 
     m_LogWriter(LogWriter),
     m_isStarted(false)
 
@@ -27,10 +27,10 @@ FlightLogger::FlightLoggerError FlightLogger::start(uint64_t timestampUs)
     LOG_TRY(writeAllFormats());
     LOG_TRY(writeAllSubscriptions());
 
-    const RocketLogWriter::FlashLogError writerResult =
+    const RocketLogger::FlashLogError writerResult =
         m_LogWriter->flush();
 
-    if (writerResult != RocketLogWriter::FlashLogError::OK)
+    if (writerResult != RocketLogger::FlashLogError::OK)
     {
         m_lastWriterError = writerResult;
         return FlightLoggerError::WriterError;
@@ -46,8 +46,8 @@ FlightLogger::FlightLoggerError FlightLogger::writeFileHeader(uint64_t timestamp
     memcpy(header.magic, ULOG_MAGIC, sizeof(header.magic));
     header.timestamp = timestampUs;
 
-    const RocketLogWriter::FlashLogError result = m_LogWriter->append(reinterpret_cast<uint8_t*>(&header), sizeof(header));
-    if (result != RocketLogWriter::FlashLogError::OK){
+    const RocketLogger::FlashLogError result = m_LogWriter->append(reinterpret_cast<uint8_t*>(&header), sizeof(header));
+    if (result != RocketLogger::FlashLogError::OK){
         m_lastWriterError = result;
         return FlightLoggerError::WriterError;
     }
@@ -62,9 +62,9 @@ FlightLogger::FlightLoggerError FlightLogger::writeFlagBits(){
 
     flag.msg_type = static_cast<uint8_t>(ULogMessageType::FLAG_BITS);
 
-    const RocketLogWriter::FlashLogError result = m_LogWriter->append(reinterpret_cast<uint8_t*>(&flag), sizeof(flag));
+    const RocketLogger::FlashLogError result = m_LogWriter->append(reinterpret_cast<uint8_t*>(&flag), sizeof(flag));
 
-    if (result != RocketLogWriter::FlashLogError::OK)
+    if (result != RocketLogger::FlashLogError::OK)
     {
         m_lastWriterError = result;
         return FlightLoggerError::WriterError;
@@ -151,12 +151,12 @@ FlightLogger::FlightLoggerError FlightLogger::writeFormat(const char* format, ui
             offsetof(ulog_message_format_s, format))
         + formatLength;
 
-    const RocketLogWriter::FlashLogError result =
+    const RocketLogger::FlashLogError result =
         m_LogWriter->append(
             reinterpret_cast<uint8_t*>(&message),
             writeLength);
 
-    if (result != RocketLogWriter::FlashLogError::OK)
+    if (result != RocketLogger::FlashLogError::OK)
     {
         m_lastWriterError = result;
         return FlightLoggerError::WriterError;
@@ -194,12 +194,12 @@ FlightLogger::FlightLoggerError FlightLogger::writeSingleSubscription(ULogMessag
     adds.msg_size = nameLength + 1U + 2U - 1U;
 
     const uint32_t writeLength = static_cast<uint32_t>(offsetof(ulog_message_add_logged_s, message_name))+ nameLength - 1;
-    const RocketLogWriter::FlashLogError result =
+    const RocketLogger::FlashLogError result =
     m_LogWriter->append(
         reinterpret_cast<uint8_t*>(&adds),
         writeLength);
 
-    if (result != RocketLogWriter::FlashLogError::OK)
+    if (result != RocketLogger::FlashLogError::OK)
     {
         m_lastWriterError = result;
         return FlightLoggerError::WriterError;
@@ -257,16 +257,16 @@ FlightLogger::FlightLoggerError FlightLogger::writeData(ULogMessageId messageID,
     dataHeader.msg_type = static_cast<uint8_t>(ULogMessageType::DATA);
     dataHeader.msg_id = static_cast<uint16_t>(messageID);
     dataHeader.msg_size = static_cast<uint16_t>(length + sizeof(dataHeader.msg_id));
-    RocketLogWriter::FlashLogError result = m_LogWriter->append(reinterpret_cast<uint8_t*>(&dataHeader), sizeof(dataHeader));
+    RocketLogger::FlashLogError result = m_LogWriter->append(reinterpret_cast<uint8_t*>(&dataHeader), sizeof(dataHeader));
 
-    if (result != RocketLogWriter::FlashLogError::OK)
+    if (result != RocketLogger::FlashLogError::OK)
     {
         m_lastWriterError = result;
         return FlightLoggerError::WriterError;
     }
 
     result = m_LogWriter->append(reinterpret_cast<uint8_t*>(payload), length);
-    if (result != RocketLogWriter::FlashLogError::OK)
+    if (result != RocketLogger::FlashLogError::OK)
     {
         m_lastWriterError = result;
         return FlightLoggerError::WriterError;
@@ -276,8 +276,8 @@ FlightLogger::FlightLoggerError FlightLogger::writeData(ULogMessageId messageID,
 }
 
 FlightLogger::FlightLoggerError FlightLogger::flush(){
-    RocketLogWriter::FlashLogError result = m_LogWriter->flush();
-    if (result != RocketLogWriter::FlashLogError::OK)
+    RocketLogger::FlashLogError result = m_LogWriter->flush();
+    if (result != RocketLogger::FlashLogError::OK)
     {
         m_lastWriterError = result;
         return FlightLoggerError::WriterError;

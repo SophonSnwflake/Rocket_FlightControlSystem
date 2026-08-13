@@ -6,7 +6,7 @@
 #include "drv_uart.h"
 #include "dvc_lora.hpp"
 #include "dvc_barometer.hpp"
-#include "mid_logger_writer.hpp"
+#include "mid_logger.hpp"
 #include "app_logger.hpp"
 
 using Vector3f = RSLMath::Vector3f;
@@ -31,7 +31,7 @@ NEOM9N_UART gnss;
 
 W25Q128 flash(hspi2, GPIOB, GPIO_PIN_0);
 
-RocketLog::RocketLogWriter loggerWriter(&flash);
+RocketLog::RocketLogger loggerWriter(&flash);
 
 RocketLog::FlightLogger logger(&loggerWriter);
 
