@@ -36,6 +36,9 @@ public:
     FlashLogError prepareNewFlight();
     FlashLogError append(uint8_t *data, uint32_t length);
     FlashLogError flush();
+    FlashLogError read(uint32_t offset, uint8_t* data, uint32_t length);
+    uint32_t getChipBytesCounts();
+
     bool isPrepared() const {return m_isPrepared;}
     uint32_t bytesWritten() const {return m_writeAddress;}
     uint32_t bytesBuffered() const {return m_bufferedLength;}

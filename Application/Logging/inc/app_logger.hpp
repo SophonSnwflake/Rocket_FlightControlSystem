@@ -52,6 +52,7 @@ public:
 
     FlightLoggerError flush();
     FlightLoggerError stop();
+    bool isStarted() {return m_isStarted;}
 
 private:
     FlightLoggerError writeFileHeader(uint64_t timestampUs);

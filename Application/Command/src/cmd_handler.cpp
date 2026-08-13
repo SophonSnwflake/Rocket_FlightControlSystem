@@ -111,6 +111,32 @@ RSL::Command::CommandHandlerResult handleFlashErase(void* context, std::size_t a
     return RSL::Command::CommandHandlerResult::OK;
 }
 
+RSL::Command::CommandHandlerResult handleFlashReadAll(void* context, std::size_t argc, const char* const* argv){
+    if (context == nullptr){
+        return RSL::Command::CommandHandlerResult::InvalidState;
+    }
+    auto* commandContext = static_cast<Application::Command::CommandContext*>(context);
+
+    if (commandContext->rocket == nullptr)
+    {
+        return RSL::Command::CommandHandlerResult::InvalidState;
+    }
+    if (commandContext->source == Application::Command::CommandSource::UART){
+        printf("[command] Trying to transmit data through UART...\r\n");
+        Rocket::RocketError state;
+        state = commandContext->rocket->readAllFlashDataThroughUART();
+        if(state != Rocket::RocketError::OK){
+            printf("[command] Transmit Failed!\r\n");
+            return RSL::Command::CommandHandlerResult::Unsupported;
+        }else{
+            printf("[command] Transmit Success!\r\n");
+            return RSL::Command::CommandHandlerResult::OK;
+        }
+    }
+
+    return RSL::Command::CommandHandlerResult::OK;
+}
+
 RSL::Command::CommandHandlerResult handleYes(void* context, std::size_t argc, const char* const* argv)
 {
     auto* ctx =

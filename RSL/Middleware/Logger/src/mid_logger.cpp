@@ -17,7 +17,7 @@ RocketLogger::FlashLogError RocketLogger::prepareNewFlight(){
     Flash::Result result;
     Flash::Geometry temGeometry;
     temGeometry = m_flash->geometry();
-    const uint32_t m_flashCapacity = temGeometry.capacity;
+    m_flashCapacity = temGeometry.capacity;
     result = m_flash->erase(0U, m_flashCapacity);
     m_lastFlashResult = result;
     if (result != Flash::Result::OK){
@@ -93,6 +93,27 @@ RocketLogger::FlashLogError RocketLogger::flush(){
     m_writeAddress += temWriteLength;
     m_bufferedLength = 0;
     return FlashLogError::OK;
+}
+
+RocketLogger::FlashLogError RocketLogger::read(uint32_t offset, uint8_t* data, uint32_t length){
+    static const uint32_t LOG_START_ADDRESS = 0U;
+    if (offset > m_writeAddress) return FlashLogError::InvalidArgument;
+
+    if (length > m_writeAddress - offset) return FlashLogError::InvalidArgument;
+
+    const uint32_t address = LOG_START_ADDRESS + offset;
+
+    const auto flashResult = m_flash->read(address, data, length);
+
+    if(flashResult != Flash::Result::OK){
+        return FlashLogError::FlashError;
+    }
+
+    return FlashLogError::OK;
+}
+
+uint32_t RocketLogger::getChipBytesCounts(){
+    return m_writeAddress;
 }
 
 uint32_t RocketLogger::remainingCapacity() const

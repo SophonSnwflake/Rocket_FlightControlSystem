@@ -12,7 +12,7 @@ extern "C" void log_task(void *argument)
     TickType_t last_wake_time = xTaskGetTickCount();
     while (true)
     {
-        rocket.rocketTotalLoop();
+        rocket.loggerLoop();
         vTaskDelayUntil(&last_wake_time, 1);
     }
 }

@@ -12,15 +12,15 @@ FlightLogger::FlightLogger(RocketLogger *LogWriter) :
 
 FlightLogger::FlightLoggerError FlightLogger::start(uint64_t timestampUs)
 {
-    if (!m_LogWriter->isPrepared())
-    {
-        return FlightLoggerError::WriterNotPrepared;
-    }
+    // if (!m_LogWriter->isPrepared())
+    // {
+    //     return FlightLoggerError::WriterNotPrepared;
+    // }
     
-    if (m_LogWriter->bytesAccepted() != 0U)
-    {
-        return FlightLoggerError::InvalidState;
-    }
+    // if (m_LogWriter->bytesAccepted() != 0U)
+    // {
+    //     return FlightLoggerError::InvalidState;
+    // }
 
     LOG_TRY(writeFileHeader(timestampUs));
     LOG_TRY(writeFlagBits());

@@ -45,7 +45,6 @@ Rocket::Rocket(IMU *imu,
     m_logger(logger),
     m_loggerWriter(loggerWriter),
     m_isInitedCompleted(false),
-    m_isLoggerInitCompleted(false),
     m_launchPhase(LaunchPhase::STANDBY),
     m_uartCommand(uartCommand)
     
@@ -263,7 +262,197 @@ void Rocket::rocketTotalLoop()
     // osDelay(1000U);
 }
 
-void Rocket::imuLoop(){
-    m_imu->solveAttitude();
-    
+void Rocket::imuLoop()
+{
+    switch (m_launchPhase)
+    {
+        case LaunchPhase::STANDBY:
+        {
+            break;
+        }
+
+        case LaunchPhase::ARMED:
+        {
+            // 读取 IMU + 姿态解算
+            m_imu->solveAttitude();
+
+            const RSLMath::Vector3f accel =
+                m_imu->getAccelRawData();
+
+            const RSLMath::Vector3f gyro =
+                m_imu->getGyroRawData();
+
+            // 构造一帧准备送给 Logger Task 的数据
+            IMULogSample sample{};
+
+            sample.timestampUs = getTimestampUs();
+            sample.sequence = ++m_imuSequence;
+
+            // 加速度 ×100 后存入 int16_t
+            sample.accel[0] =
+                static_cast<int16_t>(accel[0] * 100.0f);
+
+            sample.accel[1] =
+                static_cast<int16_t>(accel[1] * 100.0f);
+
+            sample.accel[2] =
+                static_cast<int16_t>(accel[2] * 100.0f);
+
+            // 陀螺仪同样 ×100 后存入 int16_t
+            sample.gyro[0] =
+                static_cast<int16_t>(gyro[0] * 100.0f);
+
+            sample.gyro[1] =
+                static_cast<int16_t>(gyro[1] * 100.0f);
+
+            sample.gyro[2] =
+                static_cast<int16_t>(gyro[2] * 100.0f);
+
+            // 非阻塞地送进 Logger Queue
+            // Queue 满了也绝不能卡住 IMU Task
+            const BaseType_t result =
+                xQueueSend(
+                    m_imuQueue,
+                    &sample,
+                    0
+                );
+
+            if (result != pdPASS)
+            {
+                ++m_imuLogDroppedCount;
+            }
+
+            break;
+        }
+
+        case LaunchPhase::ASCENT:
+        {
+            break;
+        }
+
+        case LaunchPhase::DESCENT:
+        {
+            break;
+        }
+
+        case LaunchPhase::LANDED:
+        {
+            break;
+        }
+
+        case LaunchPhase::SELF_TEST:
+        {
+            break;
+        }
+    }
+}
+
+
+void Rocket::loggerLoop()
+{
+    // Logger 还没有启动，就先不消费 Queue
+    if (!m_logger->isStarted())
+    {
+        return;
+    }
+
+    IMULogSample sample{};
+
+    // 等待 IMU 数据。
+    // 不使用 portMAX_DELAY，避免以后状态发生变化后
+    // Logger Task 永久卡死在这里。
+    if (xQueueReceive(
+            m_imuQueue,
+            &sample,
+            pdMS_TO_TICKS(10)) != pdPASS)
+    {
+        return;
+    }
+
+    // Queue 中的数据转成最终 ULog IMU Message
+    m_imuMessage.timestamp = sample.timestampUs;
+    m_imuMessage.sequence = sample.sequence;
+
+    m_imuMessage.accel_raw[0] = sample.accel[0];
+    m_imuMessage.accel_raw[1] = sample.accel[1];
+    m_imuMessage.accel_raw[2] = sample.accel[2];
+
+    m_imuMessage.gyro_raw[0] = sample.gyro[0];
+    m_imuMessage.gyro_raw[1] = sample.gyro[1];
+    m_imuMessage.gyro_raw[2] = sample.gyro[2];
+
+    // 真正的 ULog / Flash 写入发生在 Logger Task，
+    // 而不是 IMU Task。
+    m_logger->writeIMU(&m_imuMessage);
+}
+
+Rocket::RocketError Rocket::readAllFlashDataThroughUART()
+{
+    RocketLog::RocketLogger::FlashLogError state;
+
+    const uint32_t dataLength =
+        m_loggerWriter->getChipBytesCounts();
+
+    if (dataLength == 0)
+    {
+        return RocketError::OK;
+    }
+
+    constexpr uint32_t READ_CHUNK_SIZE = 256;
+
+    uint8_t buffer[READ_CHUNK_SIZE];
+
+    uint32_t offset = 0;
+
+    while (offset < dataLength)
+    {
+        uint32_t readLength = READ_CHUNK_SIZE;
+
+        if (dataLength - offset < READ_CHUNK_SIZE)
+        {
+            readLength = dataLength - offset;
+        }
+
+        state = m_loggerWriter->read(
+            offset,
+            buffer,
+            readLength
+        );
+
+        if (state !=
+            RocketLog::RocketLogger::FlashLogError::OK)
+        {
+            return RocketError::DeviceError;
+        }
+
+        if (HAL_UART_Transmit(
+                &huart1,
+                buffer,
+                static_cast<uint16_t>(readLength),
+                1000) != HAL_OK)
+        {
+            return RocketError::DeviceError;
+        }
+
+        offset += readLength;
+    }
+
+    return RocketError::OK;
+}
+
+uint64_t Rocket::getTimestampUs()
+{
+    static uint32_t lastCycle = DWT->CYCCNT;
+    static uint64_t totalCycles = 0;
+
+    const uint32_t currentCycle = DWT->CYCCNT;
+
+    const uint32_t elapsedCycles =
+        currentCycle - lastCycle;
+
+    totalCycles += elapsedCycles;
+    lastCycle = currentCycle;
+
+    return totalCycles /
+           (SystemCoreClock / 1000000ULL);
 }

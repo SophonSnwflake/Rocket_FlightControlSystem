@@ -18,6 +18,8 @@ RSL::Command::CommandHandlerResult handlePhaseGet(void* context, size_t argc, co
 
 RSL::Command::CommandHandlerResult handleFlashErase(void* context, std::size_t argc, const char* const* argv);
 
+RSL::Command::CommandHandlerResult handleFlashReadAll(void* context, std::size_t argc, const char* const* argv);
+
 RSL::Command::CommandHandlerResult handleYes(void* context, std::size_t argc, const char* const* argv);
 
 RSL::Command::CommandHandlerResult handleNo(void* context, std::size_t argc, const char* const* argv);

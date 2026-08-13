@@ -17,6 +17,7 @@
 #include "dvc_buzzer.hpp"
 #include "app_logger.hpp"
 #include "mid_logger.hpp"
+#include "queue.h"
 #include <cstdint>
 
 class RocketCommand; 
@@ -25,6 +26,7 @@ class Rocket
 {
 public:
     static constexpr size_t COMMAND_RX_BUFFER_SIZE = 256;
+    static constexpr uint32_t IMU_QUEUE_LENGTH = 64;
     enum class LaunchPhase : uint8_t
     {
         STANDBY = 0,   // 待命
@@ -44,6 +46,15 @@ public:
         NotInited,
     };
 
+    struct IMULogSample
+    {
+        uint64_t timestampUs;
+        uint32_t sequence;
+
+        int16_t accel[3];
+        int16_t gyro[3];
+    };
+
 
 private:
     IMU *m_imu;
@@ -56,10 +67,18 @@ private:
     RocketLog::RocketLogger *m_loggerWriter;
     RocketCommand *m_uartCommand;
     LaunchPhase m_launchPhase = LaunchPhase::STANDBY;
+    LaunchPhase m_lastLaunchPhase = LaunchPhase::STANDBY;
+
+    StaticQueue_t m_imuQueueControlBlock;
+    uint8_t m_imuQueueStorage[IMU_QUEUE_LENGTH * sizeof(IMULogSample)];
+    QueueHandle_t m_imuQueue;
     
 private:
+    IMURawMessage m_imuMessage;
+    uint32_t m_imuSequence = 0;
+    uint32_t m_imuLogDroppedCount = 0;
+    uint32_t m_loggerErrorCount = 0;
     bool m_isInitedCompleted = false;
-    bool m_isLoggerInitCompleted = false;
     uint8_t m_commandRxBuffer[COMMAND_RX_BUFFER_SIZE];
     volatile uint16_t m_commandRxLength = 0;
     volatile bool m_commandRxPending = false;
@@ -71,12 +90,14 @@ public:
     RocketError Init();
     void rocketTotalLoop();
     void imuLoop();
+    void loggerLoop();
     bool selfTest();
     LaunchPhase getPhase(){return m_launchPhase;}
     bool setPhase(LaunchPhase launchPhase);
     void setUARTCommand(RocketCommand* command);
     RocketError initLogger();
     RocketError eraseAllChipForNewFlight();
+    RocketError readAllFlashDataThroughUART();
 
 // 通信回调
     void handlePendingUARTCommand();
@@ -87,5 +108,6 @@ private:
     RocketError initLoRa();
     RocketError initFlash();
     RocketError initIMU();
+    uint64_t getTimestampUs();
                
 };

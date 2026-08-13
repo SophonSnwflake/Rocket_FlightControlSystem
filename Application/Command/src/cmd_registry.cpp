@@ -43,7 +43,18 @@ static const CommandNode loggerCommands[] =
     0,
     0,
     0
+    },
+    {
+    "readall",
+    "ReadAllChip",
+    "readall",
+    handleFlashReadAll,
+    nullptr,
+    0,
+    0,
+    0
     }
+
 };
 
 static const CommandNode rocketCommands[] =
