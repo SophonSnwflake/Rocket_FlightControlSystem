@@ -3,6 +3,7 @@
 #include "alg_general.hpp"
 #include "FreeRTOS.h"
 #include "app_command.hpp"
+#include "math_const.h"
 #include "task.h"
 #include "dvc_imu.hpp"
 #include "alg_ahrs.hpp"
@@ -26,7 +27,11 @@ class Rocket
 {
 public:
     static constexpr size_t COMMAND_RX_BUFFER_SIZE = 256;
-    static constexpr uint32_t IMU_QUEUE_LENGTH = 64;
+    static constexpr uint32_t LOG_QUEUE_LENGTH = 64;
+    static constexpr fp32 LAUNCH_ACCEL_CRITICAL_VALUE = 10.0f;
+    static constexpr fp32 PARACHUTE_PITCH_CRITICAL_POINT = 120.0f/90.0f * MATH_PI;   // 以大地为坐标系，背地朝天为0 rad，背天朝地为PI rad。
+    static constexpr fp32 PARACHUTE_MAX_WAITING_TIME = 10.0f; // 最晚开伞时间，单位秒
+    static constexpr uint16_t PARACHUTE_PITCH_CONFIRM_TIMES = 10;
     enum class LaunchPhase : uint8_t
     {
         STANDBY = 0,   // 待命
@@ -46,13 +51,31 @@ public:
         NotInited,
     };
 
-    struct IMULogSample
+    enum class LogEventType : uint8_t
     {
-        uint64_t timestampUs;
-        uint32_t sequence;
+        IMU,
+        GNSS,
+        AHRS,
+        FlightEstimate,
+        FlightState,
+        Power,
+        SystemHealth
+    };
 
-        int16_t accel[3];
-        int16_t gyro[3];
+    struct LogEvent
+    {
+        LogEventType type;
+
+        union
+        {
+            IMURawMessage imu;
+            GNSSMessage gnss;
+            AHRSMessage ahrs;
+            FlightEstimateMessage flightEstimate;
+            FlightStateMessage flightState;
+            PowerMessage power;
+            SystemHealthMessage systemHealth;
+        } data;
     };
 
 
@@ -69,16 +92,23 @@ private:
     LaunchPhase m_launchPhase = LaunchPhase::STANDBY;
     LaunchPhase m_lastLaunchPhase = LaunchPhase::STANDBY;
 
-    StaticQueue_t m_imuQueueControlBlock;
-    uint8_t m_imuQueueStorage[IMU_QUEUE_LENGTH * sizeof(IMULogSample)];
-    QueueHandle_t m_imuQueue;
+    StaticQueue_t m_logQueueControlBlock;
+    uint8_t m_logQueueStorage[LOG_QUEUE_LENGTH * sizeof(LogEvent)];
+    QueueHandle_t m_logQueue;
+
     
 private:
-    IMURawMessage m_imuMessage;
+    uint64_t m_launchTimeus = 0;
+    uint64_t m_nowTimeus = 0;
+    uint16_t m_pitchParachuteConfirmTimes = 0;
+    IMURawMessage m_imuMessage; 
+    RSLMath::Vector3f m_rawAccel;
+    RSLMath::Vector3f m_eulerAngle;
     uint32_t m_imuSequence = 0;
-    uint32_t m_imuLogDroppedCount = 0;
+    uint32_t m_logDroppedCount = 0;
     uint32_t m_loggerErrorCount = 0;
     bool m_isInitedCompleted = false;
+    bool m_isParachuteIgnited = false;
     uint8_t m_commandRxBuffer[COMMAND_RX_BUFFER_SIZE];
     volatile uint16_t m_commandRxLength = 0;
     volatile bool m_commandRxPending = false;
@@ -86,14 +116,16 @@ private:
 public:
     Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barometer, ActiveBuzzer *buzzer, RocketLog::FlightLogger *logger, RocketLog::RocketLogger *loggerWriter, RocketCommand *uartCommand);
     virtual ~Rocket() = default;
-    bool isInitCompleted() {return m_isInitedCompleted;}
     RocketError Init();
+    bool isInitCompleted() {return m_isInitedCompleted;}
+    bool isAccelLaunched();
+    bool isPitchOurOfCritialPoint();
+    void phaseSelect();
     void rocketTotalLoop();
     void imuLoop();
     void loggerLoop();
-    bool selfTest();
     LaunchPhase getPhase(){return m_launchPhase;}
-    bool setPhase(LaunchPhase launchPhase);
+    bool setPhaseBetweenSTANDBYandARMED(LaunchPhase launchPhase);
     void setUARTCommand(RocketCommand* command);
     RocketError initLogger();
     RocketError eraseAllChipForNewFlight();
@@ -104,7 +136,8 @@ public:
     void receiveUARTCommandData(const uint8_t *pRxData, uint16_t rxDataLength);
     
 private:
-    
+    void igniteParachute();
+    void parachuteLoop();
     RocketError initLoRa();
     RocketError initFlash();
     RocketError initIMU();

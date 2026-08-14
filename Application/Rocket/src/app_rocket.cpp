@@ -1,6 +1,7 @@
 #include "app_rocket.hpp"
 #include "mid_logger.hpp"
 #include "stm32f4xx_hal_gpio.h"
+#include "math_const.h"
 
 #include "stm32f4xx_hal_gpio.h"
 
@@ -49,7 +50,14 @@ Rocket::Rocket(IMU *imu,
     m_uartCommand(uartCommand)
     
 
-{}
+{
+    m_logQueue = xQueueCreateStatic(
+    LOG_QUEUE_LENGTH,
+    sizeof(LogEvent),
+    m_logQueueStorage,
+    &m_logQueueControlBlock
+    );
+}
 
 
 Rocket::RocketError Rocket::Init(){
@@ -76,12 +84,9 @@ Rocket::RocketError Rocket::Init(){
     osDelay(80U);
     m_buzzer->handleChipping(false);
 
-    uint8_t initTimes = 0;
 
-
-    while(isDeviceInithasError != true && initTimes < 5){
-    // state = initIMU();
-    // if (state != RocketError::OK){isDeviceInithasError = true;}
+    state = initIMU();
+    if (state != RocketError::OK){isDeviceInithasError = true;}
 
     state = initLoRa();
     if (state != RocketError::OK){isDeviceInithasError = true;}
@@ -99,9 +104,6 @@ Rocket::RocketError Rocket::Init(){
     state = initFlash();
     if (state != RocketError::OK){isDeviceInithasError = true;}
     
-    initTimes ++;
-    printf("initTime:%d!\r\n", initTimes);
-    }
 
     if (isDeviceInithasError)
     {
@@ -187,11 +189,57 @@ Rocket::RocketError Rocket::eraseAllChipForNewFlight(){
     return Rocket::RocketError::OK;
 }
 
-bool Rocket::setPhase(LaunchPhase launchPhase){
+void Rocket::phaseSelect(){
+    switch(m_launchPhase){
+        case LaunchPhase::STANDBY :{
+            getTimestampUs();
+            break;
+        }
+        case LaunchPhase::ARMED :{
+            if(isAccelLaunched()){
+                m_launchTimeus = getTimestampUs();
+                m_launchPhase = LaunchPhase::ASCENT;
+                break;
+            }
+            break;
+        }
+        case LaunchPhase::ASCENT:{  
+            m_nowTimeus = getTimestampUs();
+            // 防止由于执行顺序导致的溢出
+            if(m_nowTimeus <= m_launchTimeus){
+                break;
+            }
+            if (m_nowTimeus - m_launchTimeus >= PARACHUTE_MAX_WAITING_TIME * 1000000.0f){
+                m_launchPhase = LaunchPhase::DESCENT;
+                break;
+            }
+            if (isPitchOurOfCritialPoint()){
+                m_pitchParachuteConfirmTimes ++;
+                if(m_pitchParachuteConfirmTimes >= PARACHUTE_PITCH_CONFIRM_TIMES){
+                    m_launchPhase = LaunchPhase::DESCENT;
+                    break;
+                }
+            }else{
+                m_pitchParachuteConfirmTimes = 0;
+                break;
+            }
+        }
+        case LaunchPhase::DESCENT:{
+            break;
+        }
+        case LaunchPhase::LANDED:{
+            break;
+        }
+    }
+}
+
+bool Rocket::setPhaseBetweenSTANDBYandARMED(LaunchPhase launchPhase){
     m_buzzer->handleChipping(true);
     osDelay(80);
-    // HAL_Delay(80);
     m_buzzer->handleChipping(false);
+    // 当系统处于飞行阶段时，拒绝切换请求
+    if(launchPhase != LaunchPhase::ARMED && launchPhase != LaunchPhase::STANDBY) return false;
+    // 重复操作退出
     if(launchPhase == m_launchPhase){
         return true;
     }
@@ -238,40 +286,59 @@ bool i;
 
 extern uint32_t uart1RxCount;
 
+
+
 void Rocket::rocketTotalLoop()
 {
-    // printf("received number:%d\r\n", uart1RxCount);
-    // printf("Phase: %u\r\n", static_cast<unsigned>(m_launchPhase));
     handlePendingUARTCommand();
-    // m_imu->solveAttitude();
+    phaseSelect();
+    parachuteLoop();
+    m_nowTimeus = getTimestampUs();
+}
 
-    // static const uint8_t message[] = "Hello SX1268";
+void Rocket::parachuteLoop(){
+    switch(m_launchPhase){
+        case LaunchPhase::STANDBY:{
+            break;
+        }
+        case LaunchPhase::ARMED:{
+            break;
+        }
+        case LaunchPhase::ASCENT:{
+            break;
+        }
+        case LaunchPhase::DESCENT:{
+            if(m_isParachuteIgnited){
+                break;
+            }else{
+                igniteParachute();
+                m_isParachuteIgnited = true;
+                break;
+            }
+            break;
+        }
+        case LaunchPhase::LANDED:{
+            break;
+        }
 
-    // LoRa::LoraError error =
-    //     m_lora->transmit(message, sizeof(message), 0x00U);
-
-    // if (error == LoRa::LoraError::OK) {
-    //     printf("TX done\r\n");
-    // } else {
-    //     printf("TX error: %u\r\n", static_cast<unsigned>(error));
-    // }
-
-    // printf("Hello!\r\n");
-
-    // m_buzzer->handleChipping(i);
-    // osDelay(1000U);
+    }
 }
 
 void Rocket::imuLoop()
 {
+    
     switch (m_launchPhase)
-    {
+    {  
         case LaunchPhase::STANDBY:
+        case LaunchPhase::ARMED:
         {
+            m_eulerAngle = m_imu->solveAttitude();
+            m_rawAccel = m_imu->getAccelRawData();
             break;
         }
 
-        case LaunchPhase::ARMED:
+        case LaunchPhase::ASCENT:
+        case LaunchPhase::DESCENT:
         {
             // 读取 IMU + 姿态解算
             m_imu->solveAttitude();
@@ -282,56 +349,37 @@ void Rocket::imuLoop()
             const RSLMath::Vector3f gyro =
                 m_imu->getGyroRawData();
 
-            // 构造一帧准备送给 Logger Task 的数据
-            IMULogSample sample{};
+            LogEvent event{};
 
-            sample.timestampUs = getTimestampUs();
-            sample.sequence = ++m_imuSequence;
+            event.type = LogEventType::IMU;
 
-            // 加速度 ×100 后存入 int16_t
-            sample.accel[0] =
+            event.data.imu.timestamp = getTimestampUs();
+            event.data.imu.sequence  = ++m_imuSequence;
+
+            event.data.imu.accel_raw[0] =
                 static_cast<int16_t>(accel[0] * 100.0f);
 
-            sample.accel[1] =
+            event.data.imu.accel_raw[1] =
                 static_cast<int16_t>(accel[1] * 100.0f);
 
-            sample.accel[2] =
+            event.data.imu.accel_raw[2] =
                 static_cast<int16_t>(accel[2] * 100.0f);
 
-            // 陀螺仪同样 ×100 后存入 int16_t
-            sample.gyro[0] =
+            event.data.imu.gyro_raw[0] =
                 static_cast<int16_t>(gyro[0] * 100.0f);
 
-            sample.gyro[1] =
+            event.data.imu.gyro_raw[1] =
                 static_cast<int16_t>(gyro[1] * 100.0f);
 
-            sample.gyro[2] =
+            event.data.imu.gyro_raw[2] =
                 static_cast<int16_t>(gyro[2] * 100.0f);
 
-            // 非阻塞地送进 Logger Queue
-            // Queue 满了也绝不能卡住 IMU Task
-            const BaseType_t result =
-                xQueueSend(
-                    m_imuQueue,
-                    &sample,
-                    0
-                );
-
-            if (result != pdPASS)
+            if (xQueueSend( m_logQueue, &event, 0) != pdPASS)
             {
-                ++m_imuLogDroppedCount;
+                ++m_logDroppedCount;
+            }else{
+                ++m_logDroppedCount;
             }
-
-            break;
-        }
-
-        case LaunchPhase::ASCENT:
-        {
-            break;
-        }
-
-        case LaunchPhase::DESCENT:
-        {
             break;
         }
 
@@ -350,40 +398,56 @@ void Rocket::imuLoop()
 
 void Rocket::loggerLoop()
 {
-    // Logger 还没有启动，就先不消费 Queue
     if (!m_logger->isStarted())
-    {
         return;
-    }
 
-    IMULogSample sample{};
+    LogEvent event{};
 
-    // 等待 IMU 数据。
-    // 不使用 portMAX_DELAY，避免以后状态发生变化后
-    // Logger Task 永久卡死在这里。
-    if (xQueueReceive(
-            m_imuQueue,
-            &sample,
-            pdMS_TO_TICKS(10)) != pdPASS)
+    if (xQueueReceive(m_logQueue, &event, pdMS_TO_TICKS(10)) != pdPASS)return;
+
+    switch (event.type)
     {
-        return;
+        case LogEventType::IMU:
+        {
+            m_logger->writeIMU(&event.data.imu);
+            break;
+        }
+
+        case LogEventType::GNSS:
+        {
+            m_logger->writeGNSS(&event.data.gnss);
+            break;
+        }
+
+        case LogEventType::AHRS:
+        {
+            m_logger->writeAHRS(&event.data.ahrs);
+            break;
+        }
+
+        case LogEventType::Power:
+        {
+            m_logger->writePower(&event.data.power);
+            break;
+        }
+
+        default:
+            break;
     }
+}
 
-    // Queue 中的数据转成最终 ULog IMU Message
-    m_imuMessage.timestamp = sample.timestampUs;
-    m_imuMessage.sequence = sample.sequence;
+bool Rocket::isAccelLaunched(){
+    if(m_rawAccel[2] >= LAUNCH_ACCEL_CRITICAL_VALUE){
+        return true;
+    }
+    return false;
+}
 
-    m_imuMessage.accel_raw[0] = sample.accel[0];
-    m_imuMessage.accel_raw[1] = sample.accel[1];
-    m_imuMessage.accel_raw[2] = sample.accel[2];
-
-    m_imuMessage.gyro_raw[0] = sample.gyro[0];
-    m_imuMessage.gyro_raw[1] = sample.gyro[1];
-    m_imuMessage.gyro_raw[2] = sample.gyro[2];
-
-    // 真正的 ULog / Flash 写入发生在 Logger Task，
-    // 而不是 IMU Task。
-    m_logger->writeIMU(&m_imuMessage);
+bool Rocket::isPitchOurOfCritialPoint(){
+    if (m_eulerAngle[0] >= PARACHUTE_PITCH_CRITICAL_POINT){
+        return true;
+    }
+    return false;
 }
 
 Rocket::RocketError Rocket::readAllFlashDataThroughUART()
@@ -438,6 +502,10 @@ Rocket::RocketError Rocket::readAllFlashDataThroughUART()
     }
 
     return RocketError::OK;
+}
+
+void Rocket::igniteParachute(){
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);
 }
 
 uint64_t Rocket::getTimestampUs()

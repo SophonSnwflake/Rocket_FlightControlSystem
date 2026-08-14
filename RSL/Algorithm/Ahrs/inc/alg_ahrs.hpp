@@ -27,7 +27,7 @@ public:
     Vector3f m_gyro;
     Vector3f m_accel;
     Vector3f m_magnet;
-    Vector3f m_eulerAngle;
+    Vector3f m_eulerAngle;            // Pitch, Roll, Yaw
     fp32 m_quaternion[4];
     Vector3f m_motionAccelBodyFrame;  // 机体坐标系下的运动加速度
     Vector3f m_motionAccelEarthFrame; // 大地坐标系下的运动加速度

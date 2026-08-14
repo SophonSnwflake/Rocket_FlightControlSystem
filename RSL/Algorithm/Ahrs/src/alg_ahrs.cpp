@@ -64,7 +64,7 @@ const AHRS::Vector3f &AHRS::getGyro() const
 
 /**
  * @brief 获取加速度计数据
- * @return const Vector3f& 加速度计数据
+ * @return const Vector3f& 加速度计数据 Pitch, Roll, Yaw
  */
 const AHRS::Vector3f &AHRS::getAccel() const
 {

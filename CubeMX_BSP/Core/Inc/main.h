@@ -73,6 +73,8 @@ void Error_Handler(void);
 #define LORA_TXEN_GPIO_Port GPIOA
 #define LORA_NRST_Pin GPIO_PIN_8
 #define LORA_NRST_GPIO_Port GPIOB
+#define FIRE_CONTROL_Pin GPIO_PIN_9
+#define FIRE_CONTROL_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
