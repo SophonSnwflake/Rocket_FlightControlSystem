@@ -373,6 +373,10 @@ bool BMI088::selfTestGyro(){
     return true;
 }
 
+RSLMath::Vector3f IMU::getGyroBias(){
+    return m_ahrs->getGyroBias();
+}
+
 
 inline bool BMI088::readSingleReg(const SPIConfig &SPIconfig, uint8_t reg, uint8_t &prxData){
     reg |= 0x80;
@@ -414,3 +418,4 @@ bool BMI088::writeSingleReg(const SPIConfig &SPIconfig, uint8_t reg,uint8_t txDa
     if(SPI_Transmit(SPIconfig.hspi, &reg, 1, 1000)!=HAL_OK) return false;
     return SPI_Transmit(SPIconfig.hspi, &txData, 1, 1000) == HAL_OK;
 }
+

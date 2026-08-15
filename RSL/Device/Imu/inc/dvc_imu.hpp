@@ -50,6 +50,7 @@ public:
     Vector3f getGyroRawData(){return m_gyroRawData;}
     Vector3f getAccelRawData(){return m_accelRawData;}
     Vector3f getMagnetRawData(){return m_magnetRawData;}
+    Vector3f getGyroBias();
 
 protected:
 

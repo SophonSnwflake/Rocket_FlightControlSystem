@@ -429,7 +429,7 @@ LoRa::LoraError SX1268::setTCXO(fp32 voltage, uint32_t delay){
 
 LoRa::LoraError SX1268::finishTransmit()
 {
-    printf("finishTx: enter\r\n");
+    // printf("finishTx: enter\r\n");
 
     // printf("finishTx: before standby, BUSY=%u\r\n",
     //        static_cast<unsigned>(isBusy()));

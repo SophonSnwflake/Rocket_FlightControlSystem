@@ -27,7 +27,7 @@ public:
     Vector3f m_gyro;
     Vector3f m_accel;
     Vector3f m_magnet;
-    Vector3f m_eulerAngle;            // Pitch, Roll, Yaw
+    Vector3f m_eulerAngle;            // Roll,Pitch,Yaw
     fp32 m_quaternion[4];
     Vector3f m_motionAccelBodyFrame;  // 机体坐标系下的运动加速度
     Vector3f m_motionAccelEarthFrame; // 大地坐标系下的运动加速度
@@ -44,6 +44,8 @@ public:
     virtual const Vector3f &getMotionAccelEarthFrame() const;
     const fp32 *getQuaternion() const;
     const Vector3f &getEulerAngle() const;
+
+    virtual Vector3f getGyroBias() = 0;
 
 protected:
     AHRS();
@@ -94,6 +96,7 @@ public:
 
     void reset() override;
     void init() override;
+    Vector3f getGyroBias() override;
 
 private:
     void dataProcess() override;

@@ -19,6 +19,7 @@
 #include "app_logger.hpp"
 #include "mid_logger.hpp"
 #include "app_communication.hpp"
+#include "para_rocket.hpp"
 #include "queue.h"
 #include <cstdint>
 
@@ -27,12 +28,6 @@ class RocketCommand;
 class Rocket
 {
 public:
-    static constexpr size_t COMMAND_RX_BUFFER_SIZE = 256;
-    static constexpr uint32_t LOG_QUEUE_LENGTH = 64;
-    static constexpr fp32 LAUNCH_ACCEL_CRITICAL_VALUE = 10.0f;
-    static constexpr fp32 PARACHUTE_PITCH_CRITICAL_POINT = 120.0f/90.0f * MATH_PI;   // 以大地为坐标系，背地朝天为0 rad，背天朝地为PI rad。
-    static constexpr fp32 PARACHUTE_MAX_WAITING_TIME = 10.0f; // 最晚开伞时间，单位秒
-    static constexpr uint16_t PARACHUTE_PITCH_CONFIRM_TIMES = 10;
     enum class LaunchPhase : uint8_t
     {
         STANDBY = 0,   // 待命

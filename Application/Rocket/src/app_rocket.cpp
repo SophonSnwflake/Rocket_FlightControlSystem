@@ -91,24 +91,14 @@ Rocket::RocketError Rocket::Init(){
     osDelay(80U);
     m_buzzer->handleChipping(false);
 
-    state = initIMU();
-
-    state = initLoRa();
-
-    state = initGNSS();
-
-    state = initFlash();
-
-    if (state != RocketError::OK){
-        printf("DeviceInitFailed!\r\n");
-        return RocketError::DeviceError;
-    }else
-    {
-        m_isInitedCompleted = true;
-        printf("DeviceInitSuccess!\r\n");
-        return RocketError::OK;
-    }
+    if (initIMU()   != RocketError::OK) return RocketError::DeviceError;
+    if (initLoRa()  != RocketError::OK) return RocketError::DeviceError;
+    if (initGNSS()  != RocketError::OK) return RocketError::DeviceError;
+    if (initFlash() != RocketError::OK) return RocketError::DeviceError;
     
+    printf("DeviceInitSuccess!\r\n");
+    m_isInitedCompleted = true;
+    return RocketError::OK;
 }
 
 Rocket::RocketError Rocket::initGNSS(){
@@ -228,7 +218,9 @@ void Rocket::parachuteLoop(){
 
 void Rocket::imuLoop()
 {
+    taskENTER_CRITICAL();
     m_eulerAngle = m_imu->solveAttitude();
+    taskEXIT_CRITICAL();
     m_rawAccel = m_imu->getAccelRawData();
 
     switch (m_launchPhase)
@@ -248,35 +240,52 @@ void Rocket::imuLoop()
             const RSLMath::Vector3f gyro =
                 m_imu->getGyroRawData();
 
-            LogEvent event{};
+            LogEvent IMUevent{};
 
-            event.type = LogEventType::IMU;
+            IMUevent.type = LogEventType::IMU;
 
-            event.data.imu.timestamp = getTimestampUs();
-            event.data.imu.sequence  = ++m_imuSequence;
+            IMUevent.data.imu.timestamp = getTimestampUs();
+            IMUevent.data.imu.sequence  = ++m_imuSequence;
 
-            event.data.imu.accel_raw[0] =
-                static_cast<int16_t>(accel[0] * 100.0f);
+            IMUevent.data.imu.accel_raw[0] =
+                static_cast<int16_t>(accel[0] * LOGGER_IMU_SCALE_FACTOR);
 
-            event.data.imu.accel_raw[1] =
-                static_cast<int16_t>(accel[1] * 100.0f);
+            IMUevent.data.imu.accel_raw[1] =
+                static_cast<int16_t>(accel[1] * LOGGER_IMU_SCALE_FACTOR);
 
-            event.data.imu.accel_raw[2] =
-                static_cast<int16_t>(accel[2] * 100.0f);
+            IMUevent.data.imu.accel_raw[2] =
+                static_cast<int16_t>(accel[2] * LOGGER_IMU_SCALE_FACTOR);
 
-            event.data.imu.gyro_raw[0] =
-                static_cast<int16_t>(gyro[0] * 100.0f);
+            IMUevent.data.imu.gyro_raw[0] =
+                static_cast<int16_t>(gyro[0] * LOGGER_IMU_SCALE_FACTOR);
 
-            event.data.imu.gyro_raw[1] =
-                static_cast<int16_t>(gyro[1] * 100.0f);
+            IMUevent.data.imu.gyro_raw[1] =
+                static_cast<int16_t>(gyro[1] * LOGGER_IMU_SCALE_FACTOR);
 
-            event.data.imu.gyro_raw[2] =
-                static_cast<int16_t>(gyro[2] * 100.0f);
+            IMUevent.data.imu.gyro_raw[2] =
+                static_cast<int16_t>(gyro[2] * LOGGER_IMU_SCALE_FACTOR);
 
-            if (xQueueSend( m_logQueue, &event, 0) != pdPASS)
+            if (xQueueSend( m_logQueue, &IMUevent, 0) != pdPASS)
             {
                 ++m_logDroppedCount;
             }
+
+            LogEvent AHRSevent{};
+            AHRSevent.type = LogEventType::AHRS;
+            AHRSevent.data.ahrs.timestamp_us = getTimestampUs();
+            AHRSevent.data.ahrs.gyroBias[0] = m_imu->getGyroBias()[0] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
+            AHRSevent.data.ahrs.gyroBias[1] = m_imu->getGyroBias()[1] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
+            AHRSevent.data.ahrs.gyroBias[2] = m_imu->getGyroBias()[2] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
+
+            const fp32* quaternionFP32 = m_imu->m_ahrs->getQuaternion();
+            for (int i = 0; i < 4; ++i){
+                AHRSevent.data.ahrs.quaternion[i] = static_cast<int16_t>(quaternionFP32[i] * LOGGER_QUATERNION_SCALE_FACTOR);
+            }
+            if (xQueueSend( m_logQueue, &AHRSevent, 0) != pdPASS)
+            {
+                ++m_logDroppedCount;
+            }
+
             break;
         }
 
@@ -297,9 +306,9 @@ void Rocket::sendFlightTelemetryPayloadLoop(){
     payload.timeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
     payload.flight_phase = translateLaunchFhaseIntoFlightPhase(m_launchPhase);
 
-    payload.pitch_centidegree = static_cast<int16_t>((m_eulerAngle[0] * 180.0f/MATH_PI - 180.0f) * 100.0f);
-    payload.roll_centidegree = static_cast<int16_t>((m_eulerAngle[1] * 180.0f/MATH_PI - 180.0f) * 100.0f);
-    payload.yaw_centidegree = static_cast<int16_t>((m_eulerAngle[2] * 180.0f/MATH_PI - 180.0f) * 100.0f);
+    payload.pitch_centidegree = static_cast<int16_t>((m_eulerAngle[1] * 180.0f/MATH_PI) * 100.0f);
+    payload.roll_centidegree = static_cast<int16_t>((m_eulerAngle[0] * 180.0f/MATH_PI) * 100.0f);
+    payload.yaw_centidegree = static_cast<int16_t>((m_eulerAngle[2] * 180.0f/MATH_PI) * 100.0f);
 
     payload.relative_altitude_mm = static_cast<uint32_t>(m_altitude_m * 1000);
 
@@ -411,7 +420,7 @@ void Rocket::phaseSelect(){
             if(m_nowTimeus <= m_launchTimeus){
                 break;
             }
-            if (m_nowTimeus - m_launchTimeus >= PARACHUTE_MAX_WAITING_TIME * 1000000.0f){
+            if (m_nowTimeus - m_launchTimeus >= PARACHUTE_MAX_WAITING_TIME * 1000000ULL){
                 m_launchPhase = LaunchPhase::DESCENT;
                 break;
             }
@@ -419,8 +428,8 @@ void Rocket::phaseSelect(){
                 m_pitchParachuteConfirmTimes ++;
                 if(m_pitchParachuteConfirmTimes >= PARACHUTE_PITCH_CONFIRM_TIMES){
                     m_launchPhase = LaunchPhase::DESCENT;
-                    break;
                 }
+                break;
             }else{
                 m_pitchParachuteConfirmTimes = 0;
                 break;
@@ -436,15 +445,15 @@ void Rocket::phaseSelect(){
 }
 
 bool Rocket::setPhaseBetweenSTANDBYandARMED(LaunchPhase launchPhase){
-    m_buzzer->handleChipping(true);
-    osDelay(80);
-    m_buzzer->handleChipping(false);
     // 当系统处于飞行阶段时，拒绝切换请求
-    if(launchPhase != LaunchPhase::ARMED && launchPhase != LaunchPhase::STANDBY) return false;
+    if(m_launchPhase != LaunchPhase::ARMED && m_launchPhase != LaunchPhase::STANDBY) return false;
     // 重复操作退出
     if(launchPhase == m_launchPhase){
         return true;
     }
+    m_buzzer->handleChipping(true);
+    osDelay(80);
+    m_buzzer->handleChipping(false);
     m_launchPhase = launchPhase;
     return true;
 }
@@ -566,17 +575,24 @@ void Rocket::receiveUARTGNSSData(uint8_t *pRxData, uint16_t rxDataLength){
 
 uint64_t Rocket::getTimestampUs()
 {
+    uint64_t totalCyclesSnapshot;
+
+    taskENTER_CRITICAL();
+
     static uint32_t lastCycle = DWT->CYCCNT;
     static uint64_t totalCycles = 0;
 
     const uint32_t currentCycle = DWT->CYCCNT;
 
-    const uint32_t elapsedCycles =
-        currentCycle - lastCycle;
+    const uint32_t elapsedCycles = currentCycle - lastCycle;
 
     totalCycles += elapsedCycles;
     lastCycle = currentCycle;
 
-    return totalCycles /
+    totalCyclesSnapshot = totalCycles;
+
+    taskEXIT_CRITICAL();
+
+    return totalCyclesSnapshot /
            (SystemCoreClock / 1000000ULL);
 }

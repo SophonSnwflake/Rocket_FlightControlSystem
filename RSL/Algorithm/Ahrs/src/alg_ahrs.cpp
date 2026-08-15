@@ -64,7 +64,7 @@ const AHRS::Vector3f &AHRS::getGyro() const
 
 /**
  * @brief 获取加速度计数据
- * @return const Vector3f& 加速度计数据 Pitch, Roll, Yaw
+ * @return const Vector3f& 
  */
 const AHRS::Vector3f &AHRS::getAccel() const
 {
@@ -100,7 +100,7 @@ const fp32 *AHRS::getQuaternion() const
 
 /**
  * @brief 获取欧拉角
- * @return const Vector3f& 欧拉角
+ * @return const Vector3f& 欧拉角 顺序为 Roll, pitch,yaw
  */
 const AHRS::Vector3f &AHRS::getEulerAngle() const
 {
@@ -624,4 +624,8 @@ void QuaternionEKF::ekfProcess(fp32 gx, fp32 gy, fp32 gz, fp32 ax, fp32 ay, fp32
     xhat(2) = q2;
     xhat(3) = q3;
     m_kalmanFilter.setState(xhat);
+}
+
+RSLMath::Vector3f QuaternionEKF::getGyroBias(){
+    return m_gyroBias;
 }

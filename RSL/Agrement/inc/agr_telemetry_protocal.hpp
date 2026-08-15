@@ -66,6 +66,8 @@ struct FlightTelemetryPayload{
     // 范围：-180 ~ +180deg
     int16_t roll_centidegree;
     int16_t yaw_centidegree;
+
+    // 范围：-90 ~ 90deg
     int16_t pitch_centidegree;
 
     // 融合后的高度数据
