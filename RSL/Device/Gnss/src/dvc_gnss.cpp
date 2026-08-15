@@ -92,23 +92,23 @@ void NEOM9N_UART::parseNavPvt(uint8_t *payload, uint16_t length){
     // TODO: 临时诊断代码，确认实际定位状态后删除
     printf("NAV-PVT fixType=%u numSV=%u\r\n", payload[20], payload[23]);
     int32_t lon_raw = readI4(&payload[24]);
-    m_longitude = lon_raw * 1e-7;
+    m_longitude = lon_raw;
     int32_t lat_raw = readI4(&payload[28]);
-    m_latitude = lat_raw * 1e-7;
+    m_latitude = lat_raw;
     int32_t hmsl_raw = readI4(&payload[36]);
-    m_altitude = hmsl_raw / 1000.0f;
+    m_altitude = hmsl_raw;
     uint32_t h_acc_raw = readU4(&payload[40]);
-    m_h_accuracy = h_acc_raw / 1000.0f;
+    m_h_accuracy = h_acc_raw;
     uint32_t v_acc_raw = readU4(&payload[44]);
-    m_v_accuracy = v_acc_raw / 1000.0f;
+    m_v_accuracy = v_acc_raw;
     int32_t velN_raw = readI4(&payload[48]);
     int32_t velE_raw = readI4(&payload[52]);
     int32_t velD_raw = readI4(&payload[56]);
-    m_velocity_north = velN_raw / 1000.0f;  // mm/s转m/s
-    m_velocity_east  = velE_raw / 1000.0f;
-    m_velocity_down  = velD_raw / 1000.0f;
+    m_velocity_north = velN_raw;  
+    m_velocity_east  = velE_raw;
+    m_velocity_down  = velD_raw;
     uint32_t s_acc_raw = readU4(&payload[68]);
-    m_speed_accuracy = s_acc_raw / 1000.0f;
+    m_speed_accuracy = s_acc_raw;
 
     if (m_fixType >= FIX_GPS) {
     m_valid.time = 1;
@@ -138,8 +138,7 @@ bool NEOM9N_UART::verifyChecksum(uint8_t *msg, uint16_t msg_size) {
 }
 
 void NEOM9N_UART::Init(){
-m_memoryState = FREE;
-    
+    m_memoryState = FREE;
 }
 
 void NEOM9N_UART::handleGNSSMessageLoop(){
@@ -161,212 +160,11 @@ void NEOM9N_UART::receiveGNSSMessageFromUART(uint8_t *pRxData, uint16_t rxDataLe
         return;
     }
 }
+bool NEOM9N_UART::isHasNewData(){
+    if(m_memoryState == LOADED){
+        return true;
+    }
+    return false;
+}
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// void GNSS::parseNMEAdata(uint8_t *pData){
-//     char line[512];
-//     char *found = NULL;
-// 	char *checksum = NULL;
-// 	char checksum_read[2];
-// 	bool end = false;
-//     fp32 latitude_temp;
-//     fp32 longitude_temp;
-
-//     do{
-//         end = false;
-//         found = strstr((char*)pData, NMEA_GGA);
-//         if (found != NULL){
-//             found -= 3;
-//             if (found[0] != '$')
-//             break;
-//             checksum = strstr(found, "*");
-//             if (checksum == NULL)
-//             break;
-//             checksum_read[0] = *(checksum + 1);
-//             checksum_read[1] = *(checksum + 2);
-//             memset(line, 0, sizeof(line));
-//             int cpy = checksum - found + 3;
-//             if (cpy > sizeof(line))
-//             break;
-//             strncpy(line, found, cpy);
-//             uint8_t c = nmea_checksum(line);
-//             int cc = 0;
-//             sscanf(checksum_read, "%X", &cc);
-//             if(cc == c){
-//                 char *str = strtok(line, ",*");
-//                 uint8_t index = 0;
-//                 while(str != NULL){
-//                     str = strtok(NULL,",*");
-//                 switch (index){
-//                     case 0:
-//                         if (str[0] < '0' || str[0] > '9')
-//                         break;
-//                         m_time_h = ((str[0] - 48) * 10) + (str[1] - 48);
-//                         m_time_m = ((str[2] - 48) * 10) + (str[3] - 48);
-//                         m_time_s = ((str[4] - 48) * 10) + (str[5] - 48);
-//                         m_time_ss = ((str[7] - 48) * 10) + (str[8] - 48);
-//                         m_valid.time = true;
-//                     break;
-//                     case 1:
-//                         if (str[0] < '0' || str[0] > '9')
-//                             break;
-//                         latitude_temp = (fp32)atof(str);
-//                     break;
-//                     case 2:
-//                         if (strcmp(str, "S") == 0)
-//                         {
-//                             m_latitude = -nmea_convert(latitude_temp);
-//                             m_valid.latitude = 1;
-//                         }
-//                         else if (strcmp(str, "N") == 0)
-//                         {
-//                             m_latitude = nmea_convert(latitude_temp );
-//                             m_valid.latitude = 1;
-//                         }
-//                     break;
-//                     case 3:
-//                         if (str[0] < '0' || str[0] > '9')
-//                             break;
-//                         longitude_temp = (float)atof(str);
-//                     break;
-//                     case 4:
-//                         if (strcmp(str, "W") == 0)
-//                         {
-//                             m_longitude = -nmea_convert(longitude_temp);
-//                             m_valid.longitude = 1;
-//                         }
-//                         else if (strcmp(str, "E") == 0)
-//                         {
-//                             m_longitude = nmea_convert(longitude_temp);
-//                             m_valid.longitude = 1;
-//                         }
-//                     break;
-//                     case 5:
-//                         if (str[0] < '0' || str[0] > '9')
-//                             break;
-//                         m_fixType = (GNSS_FixType)atoi(str); 
-//                     break;
-//                     case 6:
-//                         if (str[0] < '0' || str[0] > '9')
-//                             break;
-//                         m_num_satellites = atoi(str);
-//                         m_valid.satellite = 1;
-//                     break;
-//                     case 7:
-//                         if (str[0] < '0' || str[0] > '9')
-//                             break;
-//                         m_hdop = (float)atof(str);
-//                         m_valid.precision = 1;
-//                     break;
-//                     case 8:
-//                         if (str[0] < '0' || str[0] > '9')
-//                             break;
-//                         m_altitude = (float)atof(str);
-//                         m_valid.altitude = 1;
-//                     break;
-//                     default:
-//                         end = true;
-//                     break;
-//                 }
-//                 index ++;
-//                 if(end)break;
-//                 }
-//             }
-//         }
-//     }
-//     while(0);
-
-// do{
-//     end = false;
-//     found = strstr((char*)pData, NMEA_VTG);
-//     if (found != NULL){
-//         found -= 3;
-//         if (found[0] != '$')
-//             break;
-
-//         checksum = strstr(found, "*");
-//         if (checksum == NULL)
-//             break;
-
-//         checksum_read[0] = *(checksum + 1);
-//         checksum_read[1] = *(checksum + 2);
-
-//         memset(line, 0, sizeof(line));
-
-//         int cpy = checksum - found + 3;
-//         if (cpy > sizeof(line))
-//             break;
-
-//         strncpy(line, found, cpy);
-
-//         uint8_t c = nmea_checksum(line);
-//         int cc = 0;
-//         sscanf(checksum_read, "%X", &cc);
-
-//         if(cc == c){
-//             char *str = strtok(line, ",*");
-//             uint8_t index = 0;
-
-//             while(str != NULL){
-//                 str = strtok(NULL,",*");
-
-//                 switch (index){
-
-//                 case 0:    
-//                     if (str[0] < '0' || str[0] > '9'){
-//                         m_valid.tracking = 0;
-//                         break;}
-//                     m_heading = (float)atof(str);
-//                     m_valid.tracking = 1;
-//                     break;
-
-//                 case 6:    
-//                     if (str[0] < '0' || str[0] > '9'){
-//                         m_valid.velocity = 0;
-//                         break;}
-//                     m_ground_speed = (float)atof(str);
-//                     m_ground_speed = m_ground_speed * 3.6f;
-//                     m_valid.velocity = 1;
-//                     break;
-
-//                 default:
-//                     end = true;
-//                     break;
-//                 }
-
-//                 index++;
-
-//                 if(end)
-//                     break;
-//             }
-//         }
-//     }
-// }
-// while(0);
-// if(m_valid.velocity && m_valid.tracking){
-    
-// }
-
-// }

@@ -31,24 +31,23 @@ public:
 
 protected:
     //位置
-    fp64 m_latitude; //纬度（度）
-    fp64 m_longitude; //经度（度）
-    fp32 m_altitude; //海拔（米）
+    int32_t m_latitude; //纬度（度 * e7）
+    int32_t m_longitude; //经度（度 * e7）
+    int32_t m_altitude; //海拔（毫米）
 
     //速度
-    fp32 m_velocity_north; //北向速度
-    fp32 m_velocity_east; //东向速度
-    fp32 m_velocity_down; //地向速度
-    fp32 m_ground_speed; //地速
-    fp32 m_heading; //航向
+    int32_t m_velocity_north; //北向速度 (mm/s)
+    int32_t m_velocity_east; //东向速度
+    int32_t m_velocity_down; //地向速度
+    // fp32 m_ground_speed; //地速
+    // fp32 m_heading; //航向
 
     //精度/质量
-    fp32 m_h_accuracy; //水平精度
-    fp32 m_v_accuracy; //垂直精度
-    fp32 m_speed_accuracy; //速度精度
+    uint32_t m_h_accuracy; //水平精度 (mm)
+    uint32_t m_v_accuracy; //垂直精度 (mm)
+    uint32_t m_speed_accuracy; //速度精度 (mm/s)
     uint8_t m_fix_type; //定位类型
     uint8_t m_num_satellites; //卫星数量
-    fp32 m_hdop; //精度因子
 
     //时间
     uint32_t m_iTOW;     // 周内时间
@@ -68,24 +67,23 @@ public:
     virtual ~GNSS() = default;
     virtual void Init() = 0;
     virtual void handleGNSSMessageLoop() = 0;
+    virtual void receiveGNSSMessageFromUART(uint8_t *pRxData, uint16_t rxDataLength) = 0;
+    virtual bool isHasNewData() = 0;
     // virtual void 
     uint8_t nmea_checksum(const char *sentence);
-    fp64 getLatitude(){return m_latitude;}
-    fp64 getLongitude(){return m_longitude;}
-    fp32 getAltitude(){return m_altitude;}
+    int32_t getLatitude(){return m_latitude;}
+    int32_t getLongitude(){return m_longitude;}
+    int32_t getAltitude(){return m_altitude;}
 
-    fp32 getVelocityNorth(){return m_velocity_north;}
-    fp32 getVelocityEast(){return m_velocity_east;}
-    fp32 getVelocityDown(){return m_velocity_down;}
-    fp32 getGroundSpeed(){return m_ground_speed;}
-    fp32 getHeading(){return m_heading;}
+    int32_t getVelocityNorth(){return m_velocity_north;}
+    int32_t getVelocityEast(){return m_velocity_east;}
+    int32_t getVelocityDown(){return m_velocity_down;}
 
-    fp32 getHAccuracy(){return m_h_accuracy;}
-    fp32 getVAccuracy(){return m_v_accuracy;}
-    fp32 getSpeedAccuracy(){return m_speed_accuracy;}
+    uint32_t getHAccuracy(){return m_h_accuracy;}
+    uint32_t getVAccuracy(){return m_v_accuracy;}
+    uint32_t getSpeedAccuracy(){return m_speed_accuracy;}
     uint8_t getFixType(){return m_fix_type;}
     uint8_t getNumSatellites(){return m_num_satellites;}
-    fp32 getHdop(){return m_hdop;}
 
     uint32_t getITOW(){return m_iTOW;}
     uint16_t getTimeY(){return m_time_y;}
@@ -96,7 +94,18 @@ public:
     uint8_t getTimeS(){return m_time_s;}
     uint8_t getTimeSs(){return m_time_ss;}
 
-    valid getValid(){return m_valid;}
+    uint8_t getValid() const
+    {
+        return
+            (static_cast<uint8_t>(m_valid.time)      << 0) |
+            (static_cast<uint8_t>(m_valid.latitude)  << 1) |
+            (static_cast<uint8_t>(m_valid.longitude) << 2) |
+            (static_cast<uint8_t>(m_valid.satellite) << 3) |
+            (static_cast<uint8_t>(m_valid.precision) << 4) |
+            (static_cast<uint8_t>(m_valid.altitude)  << 5) |
+            (static_cast<uint8_t>(m_valid.tracking)  << 6) |
+            (static_cast<uint8_t>(m_valid.velocity)  << 7);
+    }
     GNSS_FixType getFixTypeEnum(){return m_fixType;}
 };
 
@@ -119,7 +128,8 @@ protected:
 public:
     NEOM9N_UART();
     void Init() override;
-    void receiveGNSSMessageFromUART(uint8_t *pRxData, uint16_t rxDataLength);//与UART回调绑定，自动调用
+    void receiveGNSSMessageFromUART(uint8_t *pRxData, uint16_t rxDataLength) override;//与UART回调绑定，自动调用
+    bool isHasNewData() override;
     void handleGNSSMessageLoop();
     void parseUBXdata(uint8_t *pData);
     void parseUBXMessage(uint8_t *msg, uint16_t msg_size);

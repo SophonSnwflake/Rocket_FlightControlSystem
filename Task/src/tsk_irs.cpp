@@ -5,7 +5,7 @@ extern NEOM9N_UART gnss;
 extern Rocket rocket;
 
 void uart2Callback(uint8_t *pRxData, uint16_t rxDataLength){
-    gnss.receiveGNSSMessageFromUART(pRxData, rxDataLength);
+    rocket.receiveUARTGNSSData(pRxData, rxDataLength);
 }
 
 // 调试用

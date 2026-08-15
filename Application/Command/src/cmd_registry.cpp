@@ -69,6 +69,7 @@ static const CommandNode rocketCommands[] =
     0,
     0
     },
+    
     {
     "logger",
     "logger Command",

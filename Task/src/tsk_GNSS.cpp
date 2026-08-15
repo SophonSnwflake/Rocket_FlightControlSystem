@@ -6,16 +6,16 @@
 #include "drv_uart.h"
 
 
-extern NEOM9N_UART gnss;
+extern Rocket rocket;
 
 
 extern "C" void GNSS_task(void *argument){
     TickType_t last_wake_time = xTaskGetTickCount();
-    gnss.Init();
     while (true)
     {
-        gnss.handleGNSSMessageLoop();
-
+        while(rocket.isInitCompleted()){
+        rocket.GNSSLoop();
+        }
         vTaskDelayUntil(&last_wake_time, 100);
     }
 }

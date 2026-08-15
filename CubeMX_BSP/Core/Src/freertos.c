@@ -75,6 +75,13 @@ const osThreadAttr_t LOG_attributes = {
   .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for LORA */
+osThreadId_t LORAHandle;
+const osThreadAttr_t LORA_attributes = {
+  .name = "LORA",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -85,6 +92,7 @@ void rocket_task(void *argument);
 void GNSS_task(void *argument);
 void imu_task(void *argument);
 void log_task(void *argument);
+void lora_task(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -126,6 +134,9 @@ void MX_FREERTOS_Init(void) {
 
   /* creation of LOG */
   LOGHandle = osThreadNew(log_task, NULL, &LOG_attributes);
+
+  /* creation of LORA */
+  LORAHandle = osThreadNew(lora_task, NULL, &LORA_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -207,6 +218,24 @@ __weak void log_task(void *argument)
     osDelay(1);
   }
   /* USER CODE END log_task */
+}
+
+/* USER CODE BEGIN Header_lora_task */
+/**
+* @brief Function implementing the LORA thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_lora_task */
+__weak void lora_task(void *argument)
+{
+  /* USER CODE BEGIN lora_task */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END lora_task */
 }
 
 /* Private application code --------------------------------------------------*/

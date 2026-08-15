@@ -74,6 +74,8 @@ LoRa::LoraError SX1268::beginLoRa(const ConfigLoRa_t& config){
 
     LORA_TRY(setOutputPower(m_power));
 
+    m_isLoRabegined = true;
+
     return LoraError::OK;
 
 }
@@ -429,26 +431,26 @@ LoRa::LoraError SX1268::finishTransmit()
 {
     printf("finishTx: enter\r\n");
 
-    printf("finishTx: before standby, BUSY=%u\r\n",
-           static_cast<unsigned>(isBusy()));
+    // printf("finishTx: before standby, BUSY=%u\r\n",
+    //        static_cast<unsigned>(isBusy()));
 
     LoRa::LoraError state = standby(RC);
 
-    printf("finishTx: after standby, state=%u BUSY=%u\r\n",
-           static_cast<unsigned>(state),
-           static_cast<unsigned>(isBusy()));
+    // printf("finishTx: after standby, state=%u BUSY=%u\r\n",
+    //        static_cast<unsigned>(state),
+    //        static_cast<unsigned>(isBusy()));
 
     if(state != LoraError::OK) {
         return state;
     }
 
-    printf("finishTx: before clearIrq\r\n");
+    // printf("finishTx: before clearIrq\r\n");
 
     state = clearIrqStatus();
 
-    printf("finishTx: after clearIrq, state=%u BUSY=%u\r\n",
-           static_cast<unsigned>(state),
-           static_cast<unsigned>(isBusy()));
+    // printf("finishTx: after clearIrq, state=%u BUSY=%u\r\n",
+    //        static_cast<unsigned>(state),
+    //        static_cast<unsigned>(isBusy()));
 
     return state;
 }

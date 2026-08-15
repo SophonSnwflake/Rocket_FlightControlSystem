@@ -57,6 +57,8 @@ file(GLOB_RECURSE USER_SRC
     Application/Logging/src/*.cpp
     Application/Command/src/*.c
     Application/Command/src/*.cpp
+    Application/Communication/src/*.c
+    Application/Communication/src/*.cpp
     Task/*.c
     Task/*.cpp
 )
@@ -68,6 +70,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     Application/Rocket/inc
     Application/Command/inc
+    Application/Communication/inc
     Application/Logging/inc
     Application/Logging/Agreement
     Task

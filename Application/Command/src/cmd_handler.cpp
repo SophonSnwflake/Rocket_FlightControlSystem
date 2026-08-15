@@ -95,8 +95,7 @@ RSL::Command::CommandHandlerResult handlePhaseGet(void* context, size_t argc, co
 
 RSL::Command::CommandHandlerResult handleFlashErase(void* context, std::size_t argc, const char* const* argv)
 {
-    auto* ctx =
-        static_cast<CommandContext*>(context);
+    auto* ctx = static_cast<CommandContext*>(context);
 
     if (!ctx || !ctx->rocket) {
         return RSL::Command::CommandHandlerResult::InvalidState;
@@ -137,6 +136,14 @@ RSL::Command::CommandHandlerResult handleFlashReadAll(void* context, std::size_t
     return RSL::Command::CommandHandlerResult::OK;
 }
 
+RSL::Command::CommandHandlerResult handleGNSSFlowVisualizeStart(void* context, std::size_t argc, const char* const* argv){
+    
+}
+
+RSL::Command::CommandHandlerResult handleGNSSFlowVisualizeStop(void* context, std::size_t argc, const char* const* argv){
+
+}
+
 RSL::Command::CommandHandlerResult handleYes(void* context, std::size_t argc, const char* const* argv)
 {
     auto* ctx =
@@ -157,6 +164,7 @@ RSL::Command::CommandHandlerResult handleYes(void* context, std::size_t argc, co
         printf("Erasing flash...\r\n");
         Rocket::RocketError state;
         state = ctx->rocket->eraseAllChipForNewFlight();
+        state = ctx->rocket->initLogger();
         if(state != Rocket::RocketError::OK){
             if (ctx->source == Application::Command::CommandSource::UART){
                 printf("Flash erase failed!\r\n");

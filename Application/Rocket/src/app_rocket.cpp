@@ -4,6 +4,8 @@
 #include "math_const.h"
 
 #include "stm32f4xx_hal_gpio.h"
+#include <cstddef>
+#include <cstdint>
 
 static const char* resultName(Flash::Result r)
 {
@@ -36,7 +38,8 @@ Rocket::Rocket(IMU *imu,
             ActiveBuzzer *buzzer, 
             RocketLog::FlightLogger *logger, 
             RocketLog::RocketLogger *loggerWriter, 
-            RocketCommand *uartCommand):
+            RocketCommand *uartCommand,
+            Communicator *communicator):
     m_imu(imu),
     m_gnss(gnss),
     m_flash(flash),
@@ -47,7 +50,8 @@ Rocket::Rocket(IMU *imu,
     m_loggerWriter(loggerWriter),
     m_isInitedCompleted(false),
     m_launchPhase(LaunchPhase::STANDBY),
-    m_uartCommand(uartCommand)
+    m_uartCommand(uartCommand),
+    m_communicator(communicator)
     
 
 {
@@ -59,6 +63,9 @@ Rocket::Rocket(IMU *imu,
     );
 }
 
+//==============================================================================
+// 初始化
+//==============================================================================
 
 Rocket::RocketError Rocket::Init(){
     if(m_isInitedCompleted) return RocketError::HasInited;
@@ -74,7 +81,7 @@ Rocket::RocketError Rocket::Init(){
     printf("Rocket Flight Control System is Online!\r\n");
     printf("Software Git Hash:\r\n");
     printf("After\r\n");
-    printf("5dda80503932436286b3e6a3f249b4f85334145d\r\n");
+    printf("4f279cb27f4562ec366c66d3eea6c4bb83fce3f5\r\n");
     
     m_buzzer->handleChipping(true);
     osDelay(80U);
@@ -83,34 +90,19 @@ Rocket::RocketError Rocket::Init(){
     m_buzzer->handleChipping(true);
     osDelay(80U);
     m_buzzer->handleChipping(false);
-
 
     state = initIMU();
-    if (state != RocketError::OK){isDeviceInithasError = true;}
 
     state = initLoRa();
-    if (state != RocketError::OK){isDeviceInithasError = true;}
 
-    printf(
-        "flash.spiHandle = %p\r\n",
-        (void*)m_flash->getSpiHandle()
-    );
-
-    printf(
-        "flash.spiHandle->Instance = %p\r\n",
-        (void*)m_flash->getSpiHandle()->Instance
-    );
+    state = initGNSS();
 
     state = initFlash();
-    if (state != RocketError::OK){isDeviceInithasError = true;}
-    
 
-    if (isDeviceInithasError)
-    {
+    if (state != RocketError::OK){
         printf("DeviceInitFailed!\r\n");
         return RocketError::DeviceError;
-    }
-    else
+    }else
     {
         m_isInitedCompleted = true;
         printf("DeviceInitSuccess!\r\n");
@@ -119,21 +111,33 @@ Rocket::RocketError Rocket::Init(){
     
 }
 
+Rocket::RocketError Rocket::initGNSS(){
+    if(m_gnss == nullptr){
+        printf("GNSSInitFailed!\r\n");
+        return RocketError::DeviceError;
+    }
+    m_gnss->Init();
+    printf("GNSSInitSuccess!\r\n");
+    return RocketError::OK;
+}
+
 Rocket::RocketError Rocket::initLogger()
 {
     if (m_logger == nullptr) {
         return RocketError::DeviceError;
     }
 
-    const uint64_t timestampUs = static_cast<uint64_t>(HAL_GetTick()) * 1000ULL;
+    const uint64_t timestampUs = getTimestampUs();
 
     RocketLog::FlightLogger::FlightLoggerError loggerstate;
     loggerstate = m_logger->start(timestampUs);
 
     if(loggerstate != RocketLog::FlightLogger::FlightLoggerError::OK){
         return RocketError::DeviceError;
+        printf("LoggerInitFailed!\r\n");
     }
 
+    printf("LoggerInitSuccess!\r\n");
     return RocketError::OK;
 }
 
@@ -179,6 +183,204 @@ Rocket::RocketError Rocket::initLoRa(){
         return RocketError::DeviceError;
     }
 }
+
+//==============================================================================
+// 执行逻辑
+//==============================================================================
+
+void Rocket::rocketTotalLoop()
+{
+    handlePendingUARTCommand();
+    phaseSelect();
+    parachuteLoop();
+    sendFlightTelemetryPayloadLoop();
+
+    m_nowTimeus = getTimestampUs();
+}
+
+void Rocket::parachuteLoop(){
+    switch(m_launchPhase){
+        case LaunchPhase::STANDBY:{
+            break;
+        }
+        case LaunchPhase::ARMED:{
+            break;
+        }
+        case LaunchPhase::ASCENT:{
+            break;
+        }
+        case LaunchPhase::DESCENT:{
+            if(m_isParachuteIgnited){
+                break;
+            }else{
+                igniteParachute();
+                m_isParachuteIgnited = true;
+                break;
+            }
+            break;
+        }
+        case LaunchPhase::LANDED:{
+            break;
+        }
+
+    }
+}
+
+void Rocket::imuLoop()
+{
+    m_eulerAngle = m_imu->solveAttitude();
+    m_rawAccel = m_imu->getAccelRawData();
+
+    switch (m_launchPhase)
+    {  
+        case LaunchPhase::STANDBY:
+        {
+            break;
+        }
+
+        case LaunchPhase::ARMED:
+        case LaunchPhase::ASCENT:
+        case LaunchPhase::DESCENT:
+        {
+            const RSLMath::Vector3f accel =
+                m_imu->getAccelRawData();
+
+            const RSLMath::Vector3f gyro =
+                m_imu->getGyroRawData();
+
+            LogEvent event{};
+
+            event.type = LogEventType::IMU;
+
+            event.data.imu.timestamp = getTimestampUs();
+            event.data.imu.sequence  = ++m_imuSequence;
+
+            event.data.imu.accel_raw[0] =
+                static_cast<int16_t>(accel[0] * 100.0f);
+
+            event.data.imu.accel_raw[1] =
+                static_cast<int16_t>(accel[1] * 100.0f);
+
+            event.data.imu.accel_raw[2] =
+                static_cast<int16_t>(accel[2] * 100.0f);
+
+            event.data.imu.gyro_raw[0] =
+                static_cast<int16_t>(gyro[0] * 100.0f);
+
+            event.data.imu.gyro_raw[1] =
+                static_cast<int16_t>(gyro[1] * 100.0f);
+
+            event.data.imu.gyro_raw[2] =
+                static_cast<int16_t>(gyro[2] * 100.0f);
+
+            if (xQueueSend( m_logQueue, &event, 0) != pdPASS)
+            {
+                ++m_logDroppedCount;
+            }
+            break;
+        }
+
+        case LaunchPhase::LANDED:
+        {
+            break;
+        }
+
+        case LaunchPhase::SELF_TEST:
+        {
+            break;
+        }
+    }
+}
+
+void Rocket::sendFlightTelemetryPayloadLoop(){
+    Telemetry::FlightTelemetryPayload payload;
+    payload.timeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+    payload.flight_phase = translateLaunchFhaseIntoFlightPhase(m_launchPhase);
+
+    payload.pitch_centidegree = static_cast<int16_t>((m_eulerAngle[0] * 180.0f/MATH_PI - 180.0f) * 100.0f);
+    payload.roll_centidegree = static_cast<int16_t>((m_eulerAngle[1] * 180.0f/MATH_PI - 180.0f) * 100.0f);
+    payload.yaw_centidegree = static_cast<int16_t>((m_eulerAngle[2] * 180.0f/MATH_PI - 180.0f) * 100.0f);
+
+    payload.relative_altitude_mm = static_cast<uint32_t>(m_altitude_m * 1000);
+
+    payload.vertical_velocity_mm_s = static_cast<uint32_t>(m_velocity_m_s * 1000);
+    m_communicator->sendFlightTelemetryPayload(&payload);
+}
+
+
+void Rocket::loggerLoop()
+{
+    if (!m_logger->isStarted())
+        return;
+
+    LogEvent event{};
+
+    if (xQueueReceive(m_logQueue, &event, pdMS_TO_TICKS(10)) != pdPASS) return;
+
+    switch (event.type)
+    {
+        case LogEventType::IMU:
+        {
+            m_logger->writeIMU(&event.data.imu);
+            break;
+        }
+
+        case LogEventType::GNSS:
+        {
+            m_logger->writeGNSS(&event.data.gnss);
+            break;
+        }
+
+        case LogEventType::AHRS:
+        {
+            m_logger->writeAHRS(&event.data.ahrs);
+            break;
+        }
+
+        case LogEventType::Power:
+        {
+            m_logger->writePower(&event.data.power);
+            break;
+        }
+
+        default:
+            break;
+    }
+}
+
+void Rocket::GNSSLoop(){
+    if(!m_gnss->isHasNewData()) return;
+    m_gnss->handleGNSSMessageLoop();
+    if(m_launchPhase == LaunchPhase::STANDBY || m_launchPhase == LaunchPhase::ARMED) return;
+    LogEvent event{};
+
+    event.type = LogEventType::GNSS;
+    event.data.gnss.timestamp_us = getTimestampUs();
+    event.data.gnss.iTOW_ms = m_gnss->getITOW();
+    event.data.gnss.latitude_deg_e7 = m_gnss->getLatitude();
+    event.data.gnss.longitude_deg_e7 = m_gnss->getLongitude();
+    event.data.gnss.altitude_msl_mm = m_gnss->getAltitude();
+    event.data.gnss.velocity_north_mm_s = m_gnss->getVelocityNorth();
+    event.data.gnss.velocity_east_mm_s = m_gnss->getVelocityEast();
+    event.data.gnss.velocity_down_mm_s = m_gnss->getVelocityDown();
+    event.data.gnss.h_accuracy_mm = m_gnss->getHAccuracy();
+    event.data.gnss.v_accuracy_mm = m_gnss->getVAccuracy();
+    event.data.gnss.speed_accuracy_mm_s = m_gnss->getSpeedAccuracy();
+    event.data.gnss.valid_flags = m_gnss->getValid();
+    event.data.gnss.fix_type = m_gnss->getFixType();
+    event.data.gnss.num_satellites = m_gnss->getNumSatellites();
+
+    if (xQueueSend( m_logQueue, &event, 0) != pdPASS){
+        ++m_logDroppedCount;
+    }
+}
+
+void Rocket::communicationLoop(){
+    if(!m_lora->isLoRaBegined()) return;
+    m_communicator->CommunicatorLoop();
+}
+
+
 
 Rocket::RocketError Rocket::eraseAllChipForNewFlight(){
     RocketLog::RocketLogger::FlashLogError state;
@@ -282,160 +484,6 @@ void Rocket::setUARTCommand(RocketCommand* command)
 }
 
 
-bool i;
-
-extern uint32_t uart1RxCount;
-
-
-
-void Rocket::rocketTotalLoop()
-{
-    handlePendingUARTCommand();
-    phaseSelect();
-    parachuteLoop();
-    m_nowTimeus = getTimestampUs();
-}
-
-void Rocket::parachuteLoop(){
-    switch(m_launchPhase){
-        case LaunchPhase::STANDBY:{
-            break;
-        }
-        case LaunchPhase::ARMED:{
-            break;
-        }
-        case LaunchPhase::ASCENT:{
-            break;
-        }
-        case LaunchPhase::DESCENT:{
-            if(m_isParachuteIgnited){
-                break;
-            }else{
-                igniteParachute();
-                m_isParachuteIgnited = true;
-                break;
-            }
-            break;
-        }
-        case LaunchPhase::LANDED:{
-            break;
-        }
-
-    }
-}
-
-void Rocket::imuLoop()
-{
-    
-    switch (m_launchPhase)
-    {  
-        case LaunchPhase::STANDBY:
-        case LaunchPhase::ARMED:
-        {
-            m_eulerAngle = m_imu->solveAttitude();
-            m_rawAccel = m_imu->getAccelRawData();
-            break;
-        }
-
-        case LaunchPhase::ASCENT:
-        case LaunchPhase::DESCENT:
-        {
-            // 读取 IMU + 姿态解算
-            m_imu->solveAttitude();
-
-            const RSLMath::Vector3f accel =
-                m_imu->getAccelRawData();
-
-            const RSLMath::Vector3f gyro =
-                m_imu->getGyroRawData();
-
-            LogEvent event{};
-
-            event.type = LogEventType::IMU;
-
-            event.data.imu.timestamp = getTimestampUs();
-            event.data.imu.sequence  = ++m_imuSequence;
-
-            event.data.imu.accel_raw[0] =
-                static_cast<int16_t>(accel[0] * 100.0f);
-
-            event.data.imu.accel_raw[1] =
-                static_cast<int16_t>(accel[1] * 100.0f);
-
-            event.data.imu.accel_raw[2] =
-                static_cast<int16_t>(accel[2] * 100.0f);
-
-            event.data.imu.gyro_raw[0] =
-                static_cast<int16_t>(gyro[0] * 100.0f);
-
-            event.data.imu.gyro_raw[1] =
-                static_cast<int16_t>(gyro[1] * 100.0f);
-
-            event.data.imu.gyro_raw[2] =
-                static_cast<int16_t>(gyro[2] * 100.0f);
-
-            if (xQueueSend( m_logQueue, &event, 0) != pdPASS)
-            {
-                ++m_logDroppedCount;
-            }else{
-                ++m_logDroppedCount;
-            }
-            break;
-        }
-
-        case LaunchPhase::LANDED:
-        {
-            break;
-        }
-
-        case LaunchPhase::SELF_TEST:
-        {
-            break;
-        }
-    }
-}
-
-
-void Rocket::loggerLoop()
-{
-    if (!m_logger->isStarted())
-        return;
-
-    LogEvent event{};
-
-    if (xQueueReceive(m_logQueue, &event, pdMS_TO_TICKS(10)) != pdPASS)return;
-
-    switch (event.type)
-    {
-        case LogEventType::IMU:
-        {
-            m_logger->writeIMU(&event.data.imu);
-            break;
-        }
-
-        case LogEventType::GNSS:
-        {
-            m_logger->writeGNSS(&event.data.gnss);
-            break;
-        }
-
-        case LogEventType::AHRS:
-        {
-            m_logger->writeAHRS(&event.data.ahrs);
-            break;
-        }
-
-        case LogEventType::Power:
-        {
-            m_logger->writePower(&event.data.power);
-            break;
-        }
-
-        default:
-            break;
-    }
-}
-
 bool Rocket::isAccelLaunched(){
     if(m_rawAccel[2] >= LAUNCH_ACCEL_CRITICAL_VALUE){
         return true;
@@ -506,6 +554,14 @@ Rocket::RocketError Rocket::readAllFlashDataThroughUART()
 
 void Rocket::igniteParachute(){
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);
+}
+
+Telemetry::FlightPhase Rocket::translateLaunchFhaseIntoFlightPhase(LaunchPhase launchphase){
+    return static_cast<Telemetry::FlightPhase>(launchphase);
+}
+
+void Rocket::receiveUARTGNSSData(uint8_t *pRxData, uint16_t rxDataLength){
+    m_gnss->receiveGNSSMessageFromUART(pRxData, rxDataLength);
 }
 
 uint64_t Rocket::getTimestampUs()

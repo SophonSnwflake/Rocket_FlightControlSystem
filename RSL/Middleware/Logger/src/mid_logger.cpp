@@ -65,7 +65,7 @@ RocketLogger::FlashLogError RocketLogger::append(uint8_t *data, uint32_t length)
     memcpy(bufferptr + m_bufferedLength, dataptr, leftDataLength);
     m_bufferedLength += leftDataLength;
 
-    if (m_bufferedLength == BufferSize)return flush();
+    if (m_bufferedLength == BufferSize) return flush();
     return FlashLogError::OK;
 
 }

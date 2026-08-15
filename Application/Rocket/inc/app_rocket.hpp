@@ -18,6 +18,7 @@
 #include "dvc_buzzer.hpp"
 #include "app_logger.hpp"
 #include "mid_logger.hpp"
+#include "app_communication.hpp"
 #include "queue.h"
 #include <cstdint>
 
@@ -65,7 +66,6 @@ public:
     struct LogEvent
     {
         LogEventType type;
-
         union
         {
             IMURawMessage imu;
@@ -89,6 +89,7 @@ private:
     RocketLog::FlightLogger *m_logger;
     RocketLog::RocketLogger *m_loggerWriter;
     RocketCommand *m_uartCommand;
+    Communicator *m_communicator;
     LaunchPhase m_launchPhase = LaunchPhase::STANDBY;
     LaunchPhase m_lastLaunchPhase = LaunchPhase::STANDBY;
 
@@ -96,11 +97,12 @@ private:
     uint8_t m_logQueueStorage[LOG_QUEUE_LENGTH * sizeof(LogEvent)];
     QueueHandle_t m_logQueue;
 
-    
 private:
     uint64_t m_launchTimeus = 0;
     uint64_t m_nowTimeus = 0;
     uint16_t m_pitchParachuteConfirmTimes = 0;
+    uint16_t m_altitude_m = 0;
+    uint16_t m_velocity_m_s = 0; // 天向速度，单位m/s
     IMURawMessage m_imuMessage; 
     RSLMath::Vector3f m_rawAccel;
     RSLMath::Vector3f m_eulerAngle;
@@ -109,38 +111,55 @@ private:
     uint32_t m_loggerErrorCount = 0;
     bool m_isInitedCompleted = false;
     bool m_isParachuteIgnited = false;
+    bool m_isPrintingGNSSMessage = false;
     uint8_t m_commandRxBuffer[COMMAND_RX_BUFFER_SIZE];
     volatile uint16_t m_commandRxLength = 0;
     volatile bool m_commandRxPending = false;
 
 public:
-    Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barometer, ActiveBuzzer *buzzer, RocketLog::FlightLogger *logger, RocketLog::RocketLogger *loggerWriter, RocketCommand *uartCommand);
+    Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barometer, ActiveBuzzer *buzzer, RocketLog::FlightLogger *logger, RocketLog::RocketLogger *loggerWriter, RocketCommand *uartCommand, Communicator *communicator);
     virtual ~Rocket() = default;
+    // 初始化相关
     RocketError Init();
-    bool isInitCompleted() {return m_isInitedCompleted;}
-    bool isAccelLaunched();
-    bool isPitchOurOfCritialPoint();
-    void phaseSelect();
-    void rocketTotalLoop();
-    void imuLoop();
-    void loggerLoop();
-    LaunchPhase getPhase(){return m_launchPhase;}
-    bool setPhaseBetweenSTANDBYandARMED(LaunchPhase launchPhase);
-    void setUARTCommand(RocketCommand* command);
     RocketError initLogger();
     RocketError eraseAllChipForNewFlight();
     RocketError readAllFlashDataThroughUART();
 
+    // 状态指示相关
+    bool isInitCompleted() {return m_isInitedCompleted;}
+    bool isAccelLaunched();
+    bool isPitchOurOfCritialPoint();
+    LaunchPhase getPhase(){return m_launchPhase;}
+
+    // 执行逻辑
+    void phaseSelect();
+    void rocketTotalLoop();
+    void imuLoop();
+    void loggerLoop();
+    void communicationLoop();
+    void GNSSLoop();
+    bool setPhaseBetweenSTANDBYandARMED(LaunchPhase launchPhase);
+    void setUARTCommand(RocketCommand* command);
+    
 // 通信回调
     void handlePendingUARTCommand();
     void receiveUARTCommandData(const uint8_t *pRxData, uint16_t rxDataLength);
+    void receiveUARTGNSSData(uint8_t *pRxData, uint16_t rxDataLength);
     
 private:
-    void igniteParachute();
-    void parachuteLoop();
+    // 初始化相关
     RocketError initLoRa();
     RocketError initFlash();
     RocketError initIMU();
+    RocketError initGNSS();
+
+    // 状态指示相关
     uint64_t getTimestampUs();
-               
+    Telemetry::FlightPhase translateLaunchFhaseIntoFlightPhase(LaunchPhase launchphase);
+
+    // 执行逻辑
+    void igniteParachute();
+    void parachuteLoop();   
+    void sendFlightTelemetryPayloadLoop();      
+    
 };

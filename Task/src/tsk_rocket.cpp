@@ -64,11 +64,15 @@ BMP388::BMP388Config barometerConfig{
 };
 
 ActiveBuzzer buzzer(GPIOB, GPIO_PIN_2, false);
+Communicator communicator(&lora);
 
 BMP388 barometer(barometerHandle, barometerConfig);
-Rocket rocket(&imu, &gnss, &flash, &lora, &barometer,&buzzer,&logger,&loggerWriter,nullptr);
+
+Rocket rocket(&imu, &gnss, &flash, &lora, &barometer,&buzzer,&logger,&loggerWriter,nullptr,&communicator);
 
 RocketCommand uartCommand(rocket, Application::Command::CommandSource::UART);
+
+
 
 extern uint16_t g_last_size;
 extern uint16_t g_callback_count;
