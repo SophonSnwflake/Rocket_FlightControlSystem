@@ -314,7 +314,7 @@ LoRa::LoraError SX1268::receive(uint8_t* data, size_t len, uint32_t timeout){
     if ((timeoutTicks64 == 0ULL) || (timeoutTicks64 >= 0xFFFFFFULL)) return LoraError::BadParam; 
     const uint32_t timeoutValue = static_cast<uint32_t>(timeoutTicks64);
     
-    LORA_TRY(startReceive(len));
+    LORA_TRY(startReceive(len, timeoutValue));
 
     constexpr uint32_t RX_TIMEOUT_MARGIN_MS = 5U;
     bool softTimeout = false;
@@ -357,12 +357,12 @@ LoRa::LoraError SX1268::startTransmit(const uint8_t* data, size_t len, uint8_t a
 
     LORA_TRY(fixSensitivity());
 
-    LORA_TRY(launchMode(Tx));
+    LORA_TRY(launchMode(Tx, 0));
                        
     return LoraError::OK;
 }
 
-LoRa::LoraError SX1268::startReceive(size_t len){
+LoRa::LoraError SX1268::startReceive(size_t len, uint32_t timeout){
     if (len > 255U)  return LoraError::PacketTooLong;
     LORA_TRY(standby(RC));
     const uint16_t enabledIrqs =
@@ -381,7 +381,7 @@ LoRa::LoraError SX1268::startReceive(size_t len){
     LORA_TRY(setBufferBaseAddress(0x00, 0x00));
     LORA_TRY(clearIrqStatus());
     LORA_TRY(setPacketParams(m_preambleLengthLoRa, len));
-    return(launchMode(Rx));
+    return(launchMode(Rx, timeout));
 }
 
 // 配置DIO3为外部32MHzTCXO的电源控制，并设置TCXO启动等待时间
@@ -435,10 +435,6 @@ LoRa::LoraError SX1268::finishTransmit()
     //        static_cast<unsigned>(isBusy()));
 
     LoRa::LoraError state = standby(RC);
-
-    // printf("finishTx: after standby, state=%u BUSY=%u\r\n",
-    //        static_cast<unsigned>(state),
-    //        static_cast<unsigned>(isBusy()));
 
     if(state != LoraError::OK) {
         return state;
@@ -545,6 +541,42 @@ LoRa::LoraError SX1268::clearDeviceErrors(){
     return(SPIwriteStream(SX126X_CMD_CLEAR_DEVICE_ERRORS, data, 2));
 }
 
+/**
+ * @brief 启动 SX1268 的指定射频工作模式。
+ *
+ * 根据 mode 将射频前端切换至接收或发送状态，并向 SX1268
+ * 下发对应的 SetRx / SetTx 命令。
+ *
+ * Rx 模式下使用 64000 个 RTC tick，对应约 1000 ms 接收超时；
+ * Tx 模式下关闭硬件发送超时，数据发送完成后由 TX_DONE IRQ 指示。
+ * Tx 启动后会等待 BUSY 拉低，以确保芯片完成发送模式切换。
+ *
+ * @param mode 目标射频模式，仅支持 RfMode::Rx 和 RfMode::Tx。
+ * @param timeout RX模式下的硬件超时tick，Tx模式传0即可
+ * @return LoraError::OK 成功；否则返回底层操作错误或 Unsupported。
+ */
+LoRa::LoraError SX1268::launchMode(RfMode mode, uint32_t timeout) {
+  switch(mode) {
+    case(RfMode::Rx): {
+      setRfMode(Rx);
+      LORA_TRY(setRx(timeout));
+    } break;
+    
+    case(RfMode::Tx): {
+      setRfMode(Tx);
+
+      // 无超时限制，一直发送到发送完
+      LORA_TRY(setTx(SX126X_TX_TIMEOUT_NONE));
+      LORA_TRY(waitBusy());
+    } break;
+    
+    default:
+      return LoraError::Unsupported;
+    }
+
+  return LoraError::OK;
+}
+
 
 //==============================================================================
 // LoRa参数获取（Get）
@@ -622,25 +654,7 @@ uint32_t SX1268::getIrqFlags() {
   return(((uint32_t)(data[0]) << 8) | data[1]);
 }
 
-LoRa::LoraError SX1268::launchMode(RfMode mode) {
-  switch(mode) {
-    case(RfMode::Rx): {
-      setRfMode(Rx);
-      LORA_TRY(setRx(64000U));
-    } break;
-    
-    case(RfMode::Tx): {
-      setRfMode(Tx);
-      LORA_TRY(setTx(64000U));
-      LORA_TRY(waitBusy());
-    } break;
-    
-    default:
-      return LoraError::Unsupported;
-    }
 
-  return LoraError::OK;
-}
 
 LoRa::LoraError SX1268::getRxBufferStatus(uint8_t& payloadLength, uint8_t& bufferOffset, bool isUseDummy)
 {

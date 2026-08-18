@@ -28,6 +28,11 @@ public:
         System
     };
 
+    enum class CommunicationState : uint8_t{
+        TX,
+        RX,
+    };
+
     struct CommunicatorEvent
     {
         CommunicatorEventType type;
@@ -43,6 +48,8 @@ private:
     LoRa *m_lora;
     uint16_t m_sequence = 0;
 
+
+    CommunicationState m_communicationState = CommunicationState::RX;
     StaticQueue_t m_communicatorQueueControlBlock;
     uint8_t m_communicatorQueueStorage[COMMUNICATOR_QUEUE_LENGTH * sizeof(CommunicatorEvent)];
     QueueHandle_t m_communicatorQueue;

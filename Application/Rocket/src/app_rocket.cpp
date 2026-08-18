@@ -1,4 +1,5 @@
 #include "app_rocket.hpp"
+#include "agr_telemetry_protocal.hpp"
 #include "mid_logger.hpp"
 #include "stm32f4xx_hal_gpio.h"
 #include "math_const.h"
@@ -302,8 +303,13 @@ void Rocket::imuLoop()
 }
 
 void Rocket::sendFlightTelemetryPayloadLoop(){
+    uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+    if(temTimeStamp_ms - m_lastFlightTelemetryTime_ms < FLIGHT_TELEMETRY_PERIOD_MS){
+        return;
+    }
+    m_lastFlightTelemetryTime_ms = temTimeStamp_ms;
     Telemetry::FlightTelemetryPayload payload;
-    payload.timeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+    payload.timeStamp_ms = temTimeStamp_ms;
     payload.flight_phase = translateLaunchFhaseIntoFlightPhase(m_launchPhase);
 
     payload.pitch_centidegree = static_cast<int16_t>((m_eulerAngle[1] * 180.0f/MATH_PI) * 100.0f);
@@ -382,6 +388,17 @@ void Rocket::GNSSLoop(){
     if (xQueueSend( m_logQueue, &event, 0) != pdPASS){
         ++m_logDroppedCount;
     }
+
+    Telemetry::GNSSTelemetryPayload payload;
+    payload.timestamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+    payload.latitude_deg_e7 = m_gnss->getLatitude();
+    payload.longitude_deg_e7 = m_gnss->getLongitude();
+    payload.altitude_msl_mm = m_gnss->getAltitude();
+    payload.fix_type = m_gnss->getFixType();
+    payload.valid_flags = m_gnss->getValid();
+    payload.num_satellites = m_gnss->getNumSatellites();
+
+    m_communicator->sendGNSSTelemetryPayload(&payload);
 }
 
 void Rocket::communicationLoop(){

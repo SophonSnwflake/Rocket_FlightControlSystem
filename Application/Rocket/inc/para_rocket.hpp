@@ -13,3 +13,5 @@
 #define LOGGER_QUATERNION_SCALE_FACTOR                      10000.0f
 #define LOGGER_GYRO_BIAS_SCALE_FACTOR                       100000.0f
 #define LOGGER_IMU_SCALE_FACTOR                             100.0f
+
+#define FLIGHT_TELEMETRY_PERIOD_MS                          350

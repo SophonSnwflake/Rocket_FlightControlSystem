@@ -197,9 +197,9 @@ private:
 // Hand函数
     
     LoraError startTransmit(const uint8_t* data, size_t len, uint8_t addr);
-    LoraError startReceive(size_t len);
+    LoraError startReceive(size_t len, uint32_t timeout);
     LoraError finishTransmit();
-    LoraError launchMode(RfMode mode);
+    LoraError launchMode(RfMode mode, uint32_t timeout);
     LoraError finishReceive(); 
     LoraError readData(uint8_t* data, size_t len);
     

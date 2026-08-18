@@ -163,6 +163,9 @@ extern "C" {
 #define SX126X_CMD_SET_DIO2_AS_RF_SWITCH_CTRL          0x9D
 #define SX126X_CMD_SET_DIO3_AS_TCXO_CTRL               0x97
 
+//RADIOLIB_SX126X_CMD_SET_TX
+#define SX126X_TX_TIMEOUT_NONE                         0x000000    //  23    0   无超时的发送参数
+
 // 整流方案
 //SX126X_CMD_SET_REGULATOR_MODE
 #define SX126X_REGULATOR_LDO                           0x00        //  7     0   set regulator mode: LDO (default)
