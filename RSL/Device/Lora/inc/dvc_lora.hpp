@@ -4,6 +4,7 @@
 #include "alg_general.hpp"
 #include "cmsis_os.h"
 #include "drv_spi.h"
+#include "def_sx1268.h"
 
 #define LORA_SYNC_WORD_PRIVATE (0x12UL << 0)
 
@@ -19,6 +20,15 @@ public:
         uint16_t preambleLength = 8;
 
     } ConfigLoRa_t;
+
+    enum class RadioEvent : uint8_t{
+        None,
+        RxDone,
+        TxDone,
+        Timeout,
+        CrcError,
+        HeaderError
+    };
 
     typedef enum  {
         MODEM_FSK = 0,
@@ -60,8 +70,13 @@ public:
     virtual LoraError setFrequency(fp32 freq) = 0;
     virtual LoraError setOutputPower(int8_t power) = 0;
     virtual LoraError transmit(const uint8_t* data, size_t len) = 0;
-    virtual LoraError receive(uint8_t* data, size_t len, uint32_t timeout) = 0;
-
+    virtual LoraError receive(uint8_t* data, size_t len, size_t capacity, uint32_t timeout) = 0;
+    virtual LoraError startTransmit(const uint8_t* data, size_t len) = 0;
+    virtual LoraError startReceive(size_t len, uint32_t timeout) = 0;
+    virtual LoraError readData(uint8_t* data, size_t capacity, size_t& receivedLength) = 0;
+    virtual RadioEvent getEvent() = 0;
+    virtual LoraError getRxBufferStatus(uint8_t& payloadLength, uint8_t& bufferOffset, bool isUseDummy) = 0;
+    virtual bool isGetIrq() = 0;
     bool isLoRaBegined() {return m_isLoRabegined;}
 
 protected:
@@ -148,7 +163,13 @@ public:
     LoraError setFrequency(fp32 freq) override;
     LoraError setOutputPower(int8_t power) override;
     LoraError transmit(const uint8_t* data, size_t len) override;
-    LoraError receive(uint8_t* data, size_t len, uint32_t timeout) override;
+    LoraError receive(uint8_t* data, size_t len, size_t capacity, uint32_t timeout) override;
+    LoraError startTransmit(const uint8_t* data, size_t len) override;
+    LoraError startReceive(size_t len, uint32_t timeout) override;
+    RadioEvent getEvent() override;
+    LoraError getRxBufferStatus(uint8_t& payloadLength, uint8_t& bufferOffset, bool isUseDummy) override; 
+    bool isGetIrq() override;
+    LoraError readData(uint8_t* data, size_t capacity, size_t& receivedLength) override;
     // 总线锁
     class SPIGuard
     {
@@ -192,23 +213,17 @@ private:
     LoraError parseStatus(uint8_t status);
     LoraError configLoRa();
     LoraError calibrateImage(fp32 freq);
-    bool isGetIrq();
 
 // Hand函数
-    
-    LoraError startTransmit(const uint8_t* data, size_t len);
-    LoraError startReceive(size_t len, uint32_t timeout);
     LoraError finishTransmit();
     LoraError launchMode(RfMode mode, uint32_t timeout);
     LoraError finishReceive(); 
-    LoraError readData(uint8_t* data, size_t len);
     
 // Get相关
     LoraError getDeviceErrors(uint16_t* opError);
     LoraError getPacketType(uint8_t* packetType); 
     uint32_t getTimeOnAir(size_t len);
-    uint32_t getIrqFlags();    
-    LoraError getRxBufferStatus(uint8_t& payloadLength, uint8_t& bufferOffset, bool isUseDummy);                                                                  
+    uint32_t getIrqFlags();                                                                  
 
 // Set相关
     LoraError soluteModlationParams(uint8_t spreadingFactor, fp32 bandwidthKhz, uint8_t codingRate);

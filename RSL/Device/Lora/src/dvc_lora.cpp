@@ -2,7 +2,6 @@
 #include "drv_spi.h"
 #include "stm32f411xe.h"
 #include "dvc_lora.hpp"
-#include "def_sx1268.h"
 #include "stm32f4xx_hal.h"
 #include "stm32f4xx_hal_gpio.h"
 #include "drv_time.h"
@@ -292,6 +291,7 @@ LoRa::LoraError SX1268::transmit(
  * @param data 接收数据的目标缓冲区，不能为 nullptr。
  * @param len 最大读取长度；为 0 时读取完整数据包。
  * @param timeout 接收超时时间，单位为 ms；为 0 时自动计算。
+ * @param packetLength 收到的包的长度
  * @retval LoraError::OK 成功接收并读取数据。
  * @retval LoraError::RxTimeOut 发生硬件或软件接收超时。
  * @retval LoraError::BadParam 超时无效或超出硬件计数范围。
@@ -299,7 +299,7 @@ LoRa::LoraError SX1268::transmit(
  * @retval 其他错误 SPI、BUSY、IRQ 或缓冲区读取失败。
  * @note 本函数为阻塞式接口；len 为 0 时，data 应至少可容纳 255 字节。
  */
-LoRa::LoraError SX1268::receive(uint8_t* data, size_t len, uint32_t timeout){
+LoRa::LoraError SX1268::receive(uint8_t* data, size_t len, size_t capacity, uint32_t timeout){
     LORA_TRY(standby(RC));
     uint32_t timeoutInternal = timeout;
     if (timeoutInternal == 0U){
@@ -334,7 +334,8 @@ LoRa::LoraError SX1268::receive(uint8_t* data, size_t len, uint32_t timeout){
     }
     setRfMode(RfMode::Idle);
 
-    return(readData(data, len));
+    size_t packetlength;
+    return(readData(data, capacity, packetlength));
 }
 
 /**
@@ -481,80 +482,52 @@ LoRa::LoraError SX1268::finishReceive() {
     return(clearIrqStatus());
 }
 
-LoRa::LoraError SX1268::readData(uint8_t* data, size_t len)
+LoRa::LoraError SX1268::readData(uint8_t* data, size_t capacity, size_t& receivedLength)
 {
-    if (data == nullptr) return LoraError::BadParam;
+    if(data == nullptr || capacity == 0U)return LoraError::BadParam;
 
+    receivedLength = 0U;
     const uint16_t irq = getIrqFlags();
 
-    if ((irq & SX126X_IRQ_TIMEOUT) != 0U) {
+    if((irq & SX126X_IRQ_TIMEOUT) != 0U){
         (void)clearIrqStatus();
-        setRfMode(RfMode::Idle);
         return LoraError::RxTimeOut;
     }
 
-    // 确认确实完成了一次接收
-    if ((irq & SX126X_IRQ_RX_DONE) == 0U) {
+    if((irq & SX126X_IRQ_RX_DONE) == 0U){
         (void)clearIrqStatus();
-        setRfMode(RfMode::Idle);
         return LoraError::DeviceError;
     }
 
-    // 记录数据完整性错误，但仍然读取原始数据
     LoraError crcState = LoraError::OK;
 
-    if (
-        ((irq & SX126X_IRQ_CRC_ERR) != 0U) ||
-        (
-            ((irq & SX126X_IRQ_HEADER_ERR) != 0U) &&
-            ((irq & SX126X_IRQ_HEADER_VALID) == 0U)
-        )
-    ) {
+    if(((irq & SX126X_IRQ_CRC_ERR) != 0U) || (((irq & SX126X_IRQ_HEADER_ERR) != 0U) && ((irq & SX126X_IRQ_HEADER_VALID) == 0U))){
         crcState = LoraError::CrcMismatch;
     }
 
     uint8_t payloadLength = 0U;
     uint8_t bufferOffset = 0U;
 
-    LoraError state = getRxBufferStatus(
-        payloadLength,
-        bufferOffset,
-        true
-    );
+    LoraError state = getRxBufferStatus(payloadLength,bufferOffset,true);
 
-    if (state != LoraError::OK) {
+    if(state != LoraError::OK){
         (void)clearIrqStatus();
-        setRfMode(RfMode::Idle);
         return state;
     }
 
-    // len == 0 表示读取整个数据包
-    if (
-        (len != 0U) &&
-        (len < static_cast<size_t>(payloadLength))
-    ) {
-        payloadLength = static_cast<uint8_t>(len);
+    if(static_cast<size_t>(payloadLength) > capacity){
+        (void)clearIrqStatus();
+        return LoraError::PacketTooLong;
     }
 
-    state = SPIreadBuffer(
-        data,
-        payloadLength,
-        bufferOffset
-    );
+    state = SPIreadBuffer(data,payloadLength, bufferOffset);
 
-    // 无论读取是否成功，都尽量完成清理
     const LoraError cleanupState = clearIrqStatus();
-    setRfMode(RfMode::Idle);
+    if(state != LoraError::OK) return state;
 
-    // 优先报告真正的数据读取/SPI错误
-    if (state != LoraError::OK) {
-        return state;
-    }
+    receivedLength = static_cast<size_t>(payloadLength);
 
-    // 数据已经读出，但不可信
-    if (crcState != LoraError::OK) {
-        return crcState;
-    }
+    if(crcState != LoraError::OK)return crcState;
 
     return cleanupState;
 }
@@ -688,6 +661,26 @@ LoRa::LoraError SX1268::getRxBufferStatus(uint8_t& payloadLength, uint8_t& buffe
     return LoraError::OK;
 }
 
+LoRa::RadioEvent SX1268::getEvent(){
+    uint16_t irq = getIrqFlags();
+
+    if(irq & SX126X_IRQ_RX_DONE)
+        return RadioEvent::RxDone;
+
+    if(irq & SX126X_IRQ_TX_DONE)
+        return RadioEvent::TxDone;
+
+    if(irq & SX126X_IRQ_TIMEOUT)
+        return RadioEvent::Timeout;
+
+    if(irq & SX126X_IRQ_CRC_ERR)
+        return RadioEvent::CrcError;
+
+    if(irq & SX126X_IRQ_HEADER_ERR)
+        return RadioEvent::HeaderError;
+
+    return RadioEvent::None;
+}
 
 //==============================================================================
 // LoRa参数设置（Set）

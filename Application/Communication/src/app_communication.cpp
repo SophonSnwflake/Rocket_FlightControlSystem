@@ -2,74 +2,108 @@
 #include "agr_telemetry_protocal.hpp"
 
 
-
 Communicator::Communicator(LoRa *lora) :
     m_lora(lora)
 {
     m_communicatorQueue = xQueueCreateStatic(COMMUNICATOR_QUEUE_LENGTH, sizeof(CommunicatorEvent), m_communicatorQueueStorage, &m_communicatorQueueControlBlock);
 }
 
+/**
+ * @brief 执行一次通信循环，处理 LoRa 接收事件及遥测发送队列。
+ *
+ * 优先检查 LoRa DIO1 IRQ；若检测到 RX_DONE，则读取收到的数据包，
+ * 保存实际包长并标记新数据可用。随后检查发送队列，并根据事件类型
+ * 编码 Flight、GNSS 或 System 遥测数据后通过 LoRa 阻塞发送。
+ * 每次发送完成后重新进入持续接收模式，以恢复下行命令监听。
+ *
+ * 本函数本身不包含永久循环，应由上层 Communication Task 周期调用。
+ *
+ * @return CommunicatorError::OK 本轮处理成功或无事件；
+ *         其他返回值表示初始化、队列、编码或 LoRa 设备错误。
+ */
 Communicator::CommunicatorError Communicator::CommunicatorLoop(){
     if (m_lora == nullptr)return CommunicatorError::DidNotInit;
     if (!m_lora->isLoRaBegined())return CommunicatorError::DidNotInit;
     if (m_communicatorQueue == nullptr)return CommunicatorError::QueueError;
     CommunicatorEvent event{};
+    
+    // ================= RX =================
+    if(m_lora->isGetIrq() && m_lora->getEvent() == LoRa::RadioEvent::RxDone){
+        size_t packetLength = 0U;
 
-    if (xQueueReceive(m_communicatorQueue, &event, pdMS_TO_TICKS(10)) != pdPASS) return CommunicatorError::OK;
+        const LoRa::LoraError loraResult =  m_lora->readData(m_rxBuffer,LORA_RX_BUFFER_SIZE, packetLength);
 
-    switch (event.type)
-    {
-        case CommunicatorEventType::Flight:
-        {
-            const uint16_t sequence = m_sequence;
-            uint8_t buff[HEADER_SIZE + FLIGHT_PAYLOAD_SIZE];
-            CommunicatorError result = encodeHeaderTelemetry(Telemetry::PacketType::FlightTelemetry, buff, sequence, FLIGHT_PAYLOAD_SIZE);
-            if (result != CommunicatorError::OK) return result;
-
-            result = encodeFlightTelemetry(&event.data.flight, &buff[HEADER_SIZE], FLIGHT_PAYLOAD_SIZE);
-            if (result != CommunicatorError::OK)return result;
-
-            LoRa::LoraError loraResult = m_lora->transmit(buff, HEADER_SIZE + FLIGHT_PAYLOAD_SIZE);
-            m_sequence ++;
-            if (loraResult != LoRa::LoraError::OK)return CommunicatorError::DeviceError;
-            break;
-        }
-
-        case CommunicatorEventType::GNSS:
-        {
-            const uint16_t sequence = m_sequence;
-            uint8_t buff[HEADER_SIZE + GNSS_PAYLOAD_SIZE];
-            CommunicatorError result = encodeHeaderTelemetry(Telemetry::PacketType::GNSSTelemetry, buff, sequence, GNSS_PAYLOAD_SIZE);
-            if (result != CommunicatorError::OK) return result;
-
-            result = encodeGNSSTelemetry(&event.data.gnss, &buff[HEADER_SIZE], GNSS_PAYLOAD_SIZE);
-            if (result != CommunicatorError::OK)return result;
-
-            LoRa::LoraError loraResult = m_lora->transmit(buff, HEADER_SIZE + GNSS_PAYLOAD_SIZE);
-            m_sequence ++;
-            if (loraResult != LoRa::LoraError::OK)return CommunicatorError::DeviceError;
-            break;
-        }
-
-        case CommunicatorEventType::System:
-        {
-            const uint16_t sequence = m_sequence;
-            uint8_t buff[HEADER_SIZE + SYSTEM_PAYLOAD_SIZE];
-            CommunicatorError result = encodeHeaderTelemetry(Telemetry::PacketType::GNSSTelemetry, buff, sequence, SYSTEM_PAYLOAD_SIZE);
-            if (result != CommunicatorError::OK) return result;
-
-            result = encodeSystemTelemetry(&event.data.system, &buff[HEADER_SIZE], SYSTEM_PAYLOAD_SIZE);
-            if (result != CommunicatorError::OK)return result;
-
-            LoRa::LoraError loraResult = m_lora->transmit(buff, HEADER_SIZE + SYSTEM_PAYLOAD_SIZE);
-            m_sequence ++;
-            if (loraResult != LoRa::LoraError::OK)return CommunicatorError::DeviceError;
-            break;
-        }
-
-        default:
-            break;
+        if(loraResult == LoRa::LoraError::PacketTooLong) return CommunicatorError::RxPacketTooLong;
+           
+        if(loraResult != LoRa::LoraError::OK) return CommunicatorError::DeviceError;
+        
+        m_rxLength = packetLength;
+        m_isReceivedData = true;
+        return CommunicatorError::OK;
     }
+    // ================= TX =================
+    else if (xQueueReceive(m_communicatorQueue, &event, 0) == pdPASS){
+        switch (event.type)
+        {
+            case CommunicatorEventType::Flight:
+            {
+                const uint16_t sequence = m_sequence;
+                uint8_t buff[HEADER_SIZE + FLIGHT_PAYLOAD_SIZE];
+                CommunicatorError result = encodeHeaderTelemetry(Telemetry::PacketType::FlightTelemetry, buff, sequence, FLIGHT_PAYLOAD_SIZE);
+                if (result != CommunicatorError::OK) return result;
+
+                result = encodeFlightTelemetry(&event.data.flight, &buff[HEADER_SIZE], FLIGHT_PAYLOAD_SIZE);
+                if (result != CommunicatorError::OK)return result;
+
+                LoRa::LoraError loraResult = m_lora->transmit(buff, HEADER_SIZE + FLIGHT_PAYLOAD_SIZE);
+                
+                if (loraResult != LoRa::LoraError::OK)return CommunicatorError::DeviceError;
+                m_sequence ++;
+                break;
+            }
+
+            case CommunicatorEventType::GNSS:
+            {
+                const uint16_t sequence = m_sequence;
+                uint8_t buff[HEADER_SIZE + GNSS_PAYLOAD_SIZE];
+                CommunicatorError result = encodeHeaderTelemetry(Telemetry::PacketType::GNSSTelemetry, buff, sequence, GNSS_PAYLOAD_SIZE);
+                if (result != CommunicatorError::OK) return result;
+
+                result = encodeGNSSTelemetry(&event.data.gnss, &buff[HEADER_SIZE], GNSS_PAYLOAD_SIZE);
+                if (result != CommunicatorError::OK)return result;
+
+                LoRa::LoraError loraResult = m_lora->transmit(buff, HEADER_SIZE + GNSS_PAYLOAD_SIZE);
+                
+                if (loraResult != LoRa::LoraError::OK)return CommunicatorError::DeviceError;
+                m_sequence ++;
+                break;
+            }
+
+            case CommunicatorEventType::System:
+            {
+                const uint16_t sequence = m_sequence;
+                uint8_t buff[HEADER_SIZE + SYSTEM_PAYLOAD_SIZE];
+                CommunicatorError result = encodeHeaderTelemetry(Telemetry::PacketType::SystemTelemetry, buff, sequence, SYSTEM_PAYLOAD_SIZE);
+                if (result != CommunicatorError::OK) return result;
+
+                result = encodeSystemTelemetry(&event.data.system, &buff[HEADER_SIZE], SYSTEM_PAYLOAD_SIZE);
+                if (result != CommunicatorError::OK)return result;
+
+                LoRa::LoraError loraResult = m_lora->transmit(buff, HEADER_SIZE + SYSTEM_PAYLOAD_SIZE);
+                
+                if (loraResult != LoRa::LoraError::OK)return CommunicatorError::DeviceError;
+                m_sequence ++;
+                break;
+            }
+
+            default:
+                break;
+        }
+        if(m_lora->startReceive( LORA_RX_BUFFER_SIZE, SX126X_RX_TIMEOUT_INF) != LoRa::LoraError::OK) return CommunicatorError::DeviceError;
+        return CommunicatorError::OK;
+    } 
+    
+    
     return CommunicatorError::OK;
 }
 
@@ -117,7 +151,6 @@ Communicator::CommunicatorError Communicator::sendSystemTelemetryPayload(const T
     }
     return CommunicatorError::OK;
 }
-
 
 
 Communicator::CommunicatorError Communicator::encodeHeaderTelemetry(const Telemetry::PacketType type, uint8_t *buffer, uint16_t sequence, uint16_t payloadLength){

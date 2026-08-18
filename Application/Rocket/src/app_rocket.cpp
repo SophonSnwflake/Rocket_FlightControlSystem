@@ -504,6 +504,10 @@ void Rocket::handlePendingUARTCommand(){
     
 }
 
+void Rocket::receiveLoRaCommandData(const uint8_t *pRxData, uint16_t rxDataLength){
+
+}
+
 void Rocket::setUARTCommand(RocketCommand* command)
 {
     m_uartCommand = command;

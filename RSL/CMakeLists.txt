@@ -136,7 +136,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     Driver/Uart/inc
     Middleware/Logger/inc
     Middleware/Command/inc
-    Agrement/inc
+    Agreement/inc
 )
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC

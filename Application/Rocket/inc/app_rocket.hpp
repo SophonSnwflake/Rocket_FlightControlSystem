@@ -141,6 +141,8 @@ public:
     void handlePendingUARTCommand();
     void receiveUARTCommandData(const uint8_t *pRxData, uint16_t rxDataLength);
     void receiveUARTGNSSData(uint8_t *pRxData, uint16_t rxDataLength);
+
+    void receiveLoRaCommandData(const uint8_t *pRxData, uint16_t rxDataLength);
     
 private:
     // 初始化相关
