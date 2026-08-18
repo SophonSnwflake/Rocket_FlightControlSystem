@@ -59,7 +59,7 @@ public:
     virtual LoraError beginLoRa(const ConfigLoRa_t& config) = 0;
     virtual LoraError setFrequency(fp32 freq) = 0;
     virtual LoraError setOutputPower(int8_t power) = 0;
-    virtual LoraError transmit(const uint8_t* data, size_t len, uint8_t addr) = 0;
+    virtual LoraError transmit(const uint8_t* data, size_t len) = 0;
     virtual LoraError receive(uint8_t* data, size_t len, uint32_t timeout) = 0;
 
     bool isLoRaBegined() {return m_isLoRabegined;}
@@ -147,7 +147,7 @@ public:
     LoraError beginLoRa(const ConfigLoRa_t& config) override;
     LoraError setFrequency(fp32 freq) override;
     LoraError setOutputPower(int8_t power) override;
-    LoraError transmit(const uint8_t* data, size_t len, uint8_t addr) override;
+    LoraError transmit(const uint8_t* data, size_t len) override;
     LoraError receive(uint8_t* data, size_t len, uint32_t timeout) override;
     // 总线锁
     class SPIGuard
@@ -196,7 +196,7 @@ private:
 
 // Hand函数
     
-    LoraError startTransmit(const uint8_t* data, size_t len, uint8_t addr);
+    LoraError startTransmit(const uint8_t* data, size_t len);
     LoraError startReceive(size_t len, uint32_t timeout);
     LoraError finishTransmit();
     LoraError launchMode(RfMode mode, uint32_t timeout);

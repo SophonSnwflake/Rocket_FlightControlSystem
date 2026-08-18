@@ -29,7 +29,7 @@ Communicator::CommunicatorError Communicator::CommunicatorLoop(){
             result = encodeFlightTelemetry(&event.data.flight, &buff[HEADER_SIZE], FLIGHT_PAYLOAD_SIZE);
             if (result != CommunicatorError::OK)return result;
 
-            LoRa::LoraError loraResult = m_lora->transmit(buff, HEADER_SIZE + FLIGHT_PAYLOAD_SIZE, 0);
+            LoRa::LoraError loraResult = m_lora->transmit(buff, HEADER_SIZE + FLIGHT_PAYLOAD_SIZE);
             m_sequence ++;
             if (loraResult != LoRa::LoraError::OK)return CommunicatorError::DeviceError;
             break;
@@ -45,7 +45,7 @@ Communicator::CommunicatorError Communicator::CommunicatorLoop(){
             result = encodeGNSSTelemetry(&event.data.gnss, &buff[HEADER_SIZE], GNSS_PAYLOAD_SIZE);
             if (result != CommunicatorError::OK)return result;
 
-            LoRa::LoraError loraResult = m_lora->transmit(buff, HEADER_SIZE + GNSS_PAYLOAD_SIZE, 0);
+            LoRa::LoraError loraResult = m_lora->transmit(buff, HEADER_SIZE + GNSS_PAYLOAD_SIZE);
             m_sequence ++;
             if (loraResult != LoRa::LoraError::OK)return CommunicatorError::DeviceError;
             break;
@@ -61,7 +61,7 @@ Communicator::CommunicatorError Communicator::CommunicatorLoop(){
             result = encodeSystemTelemetry(&event.data.system, &buff[HEADER_SIZE], SYSTEM_PAYLOAD_SIZE);
             if (result != CommunicatorError::OK)return result;
 
-            LoRa::LoraError loraResult = m_lora->transmit(buff, HEADER_SIZE + SYSTEM_PAYLOAD_SIZE, 0);
+            LoRa::LoraError loraResult = m_lora->transmit(buff, HEADER_SIZE + SYSTEM_PAYLOAD_SIZE);
             m_sequence ++;
             if (loraResult != LoRa::LoraError::OK)return CommunicatorError::DeviceError;
             break;

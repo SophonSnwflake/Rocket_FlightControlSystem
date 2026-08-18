@@ -223,7 +223,6 @@ LoRa::LoraError SX1268::standby(StandbyMode mode) {
  *          发送完成或超时后调用 finishTransmit() 清理 IRQ 和 RF 通路。
  * @param data 待发送数据的缓冲区，长度非零时不能为 nullptr。
  * @param len 待发送数据长度，最大为 SX126X_MAX_PACKET_LENGTH。
- * @param addr 数据写入 SX126x 内部 Buffer 的起始偏移地址。
  * @retval LoraError::OK 数据发送完成且清理成功。
  * @retval LoraError::PacketTooLong 数据长度超过芯片允许的最大包长。
  * @retval LoraError::TxTimeOut 在预计时间内未检测到发送完成 IRQ。
@@ -233,8 +232,7 @@ LoRa::LoraError SX1268::standby(StandbyMode mode) {
 
 LoRa::LoraError SX1268::transmit(
     const uint8_t* data,
-    size_t len,
-    uint8_t addr)
+    size_t len)
 {
     LORA_TRY(standby(RC));
 
@@ -243,7 +241,7 @@ LoRa::LoraError SX1268::transmit(
     }
     const uint32_t timeout = 3000U;
 
-    LORA_TRY(startTransmit(data, len, addr));
+    LORA_TRY(startTransmit(data, len));
     uint32_t start = HAL_GetTick();
 
     while(true)
@@ -339,7 +337,20 @@ LoRa::LoraError SX1268::receive(uint8_t* data, size_t len, uint32_t timeout){
     return(readData(data, len));
 }
 
-LoRa::LoraError SX1268::startTransmit(const uint8_t* data, size_t len, uint8_t addr){
+/**
+ * @brief 启动一次 SX1268 非阻塞发送。
+ *
+ * 配置数据包参数、TX_DONE/TIMEOUT 中断、FIFO 基地址，
+ * 将待发送数据写入 SX1268 Buffer，并清除旧 IRQ 状态。
+ * 随后执行灵敏度相关修正并切换至 TX 模式开始发送。
+ * 函数仅负责启动发送，不等待整个数据包发送完成。
+ *
+ * @param data 指向待发送数据缓冲区的指针。
+ * @param len 待发送数据长度，不能超过最大包长。
+ * @param addr 预留地址参数，当前函数中未使用。
+ * @return LoraError::OK 成功，否则返回对应错误码。
+ */
+LoRa::LoraError SX1268::startTransmit(const uint8_t* data, size_t len){
     // check packet length
     if(len > SX126X_MAX_PACKET_LENGTH) return LoraError::PacketTooLong;
 
@@ -362,6 +373,18 @@ LoRa::LoraError SX1268::startTransmit(const uint8_t* data, size_t len, uint8_t a
     return LoraError::OK;
 }
 
+/**
+ * @brief 启动一次 SX1268 非阻塞接收。
+ *
+ * 配置 RX 相关 IRQ、DIO1 映射、FIFO 基地址及数据包参数，
+ * 清除旧 IRQ 状态后切换至 RX 模式开始监听。
+ * timeout 直接作为 SetRx() 的 24 位硬件超时 tick 值使用。
+ * 函数仅负责启动接收，不等待数据包到达。
+ *
+ * @param len 期望接收的数据长度，不能超过 255 字节。
+ * @param timeout SX1268 RX 超时 tick，1 tick = 15.625 us。
+ * @return LoraError::OK 成功，否则返回对应错误码。
+ */
 LoRa::LoraError SX1268::startReceive(size_t len, uint32_t timeout){
     if (len > 255U)  return LoraError::PacketTooLong;
     LORA_TRY(standby(RC));
