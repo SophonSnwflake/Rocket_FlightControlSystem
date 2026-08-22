@@ -87,6 +87,8 @@ RSL::Command::CommandHandlerResult handlePhaseGet(void* context, size_t argc, co
 
     if (commandContext->source == Application::Command::CommandSource::UART){
         printf("[command] Flight phase is: %s\r\n", launchPhaseToString(commandContext->rocket->getPhase()));
+    } else if(commandContext->source == Application::Command::CommandSource::LoRa){
+        // commandContext->rocket->
     }
 
     return RSL::Command::CommandHandlerResult::OK;

@@ -12,6 +12,8 @@ public:
     static constexpr size_t FLIGHT_PAYLOAD_SIZE = 19;
     static constexpr size_t GNSS_PAYLOAD_SIZE   = 19;
     static constexpr size_t SYSTEM_PAYLOAD_SIZE = 11;
+    static constexpr size_t RAW_DATA_MAX_LENGTH = 128;
+
     enum class CommunicatorError : uint8_t{
         OK = 0,
         DeviceError,
@@ -19,14 +21,21 @@ public:
         QueueFull,
         DidNotInit,
         BadParama,
-        RxPacketTooLong
+        RxPacketTooLong,
+        TxPacketTooLong
     };
 
     enum class CommunicatorEventType : uint8_t
     {
         Flight,
         GNSS,
-        System
+        System,
+        RawData
+    };    
+    struct RawDataPayload
+    {
+        uint16_t length;
+        uint8_t data[RAW_DATA_MAX_LENGTH];
     };
 
     enum class CommunicationState : uint8_t{
@@ -42,16 +51,13 @@ public:
             Telemetry::FlightTelemetryPayload flight;
             Telemetry::GNSSTelemetryPayload gnss;
             Telemetry::SystemTelemetryPayload system;
+            RawDataPayload raw;
         } data;
     };
 
 private:
     LoRa *m_lora;
     uint16_t m_sequence = 0;
-    static constexpr size_t LORA_RX_BUFFER_SIZE = 255U;
-    uint8_t m_rxBuffer[LORA_RX_BUFFER_SIZE];
-    size_t m_rxLength = 0U;
-    bool m_isReceivedData = false;
 
     CommunicationState m_communicationState = CommunicationState::RX;
     StaticQueue_t m_communicatorQueueControlBlock;
@@ -62,12 +68,11 @@ private:
 public:
     Communicator(LoRa *lora);
     ~Communicator() = default;
-    CommunicatorError CommunicatorLoop();
+    CommunicatorError CommunicatorLoop(uint8_t *rxBuffer, size_t rxCapacity, size_t &packetLength, bool &isReceivedData);
     CommunicatorError sendFlightTelemetryPayload(const Telemetry::FlightTelemetryPayload *payload);
     CommunicatorError sendGNSSTelemetryPayload(const Telemetry::GNSSTelemetryPayload *payload);
     CommunicatorError sendSystemTelemetryPayload(const Telemetry::SystemTelemetryPayload *payload);
-    void setReceiveFlagFalse() {m_isReceivedData = false;}
-    uint8_t getRxLength(){return m_rxLength;}
+    CommunicatorError sendRawData(const uint8_t* data, size_t length);
 
 private:   
     CommunicatorError encodeHeaderTelemetry(const Telemetry::PacketType type, uint8_t *buffer, uint16_t sequence, uint16_t payloadLength);

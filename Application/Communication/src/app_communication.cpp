@@ -21,28 +21,30 @@ Communicator::Communicator(LoRa *lora) :
  * @return CommunicatorError::OK 本轮处理成功或无事件；
  *         其他返回值表示初始化、队列、编码或 LoRa 设备错误。
  */
-Communicator::CommunicatorError Communicator::CommunicatorLoop(){
+Communicator::CommunicatorError Communicator::CommunicatorLoop(uint8_t *rxBuffer, size_t rxCapacity, size_t &rxLength, bool &isReceivedData){
     if (m_lora == nullptr)return CommunicatorError::DidNotInit;
     if (!m_lora->isLoRaBegined())return CommunicatorError::DidNotInit;
     if (m_communicatorQueue == nullptr)return CommunicatorError::QueueError;
+    if (rxBuffer == nullptr || rxCapacity == 0U) return CommunicatorError::BadParama;
+
     CommunicatorEvent event{};
-    
+    rxLength = 0U;
+    isReceivedData = false;
     // ================= RX =================
     if(m_lora->isGetIrq() && m_lora->getEvent() == LoRa::RadioEvent::RxDone){
-        size_t packetLength = 0U;
 
-        const LoRa::LoraError loraResult =  m_lora->readData(m_rxBuffer,LORA_RX_BUFFER_SIZE, packetLength);
+        const LoRa::LoraError loraResult =  m_lora->readData(rxBuffer,rxCapacity, rxLength);
 
         if(loraResult == LoRa::LoraError::PacketTooLong) return CommunicatorError::RxPacketTooLong;
            
         if(loraResult != LoRa::LoraError::OK) return CommunicatorError::DeviceError;
         
-        m_rxLength = packetLength;
-        m_isReceivedData = true;
+        isReceivedData = true;
         return CommunicatorError::OK;
     }
     // ================= TX =================
     else if (xQueueReceive(m_communicatorQueue, &event, 0) == pdPASS){
+        isReceivedData = false;
         switch (event.type)
         {
             case CommunicatorEventType::Flight:
@@ -96,14 +98,20 @@ Communicator::CommunicatorError Communicator::CommunicatorLoop(){
                 break;
             }
 
+            case CommunicatorEventType::RawData:
+            {
+                const auto loraResult = m_lora->transmit(event.data.raw.data, event.data.raw.length);
+
+                if (loraResult != LoRa::LoraError::OK) return CommunicatorError::DeviceError;
+                break;
+            }
+
             default:
                 break;
         }
-        if(m_lora->startReceive( LORA_RX_BUFFER_SIZE, SX126X_RX_TIMEOUT_INF) != LoRa::LoraError::OK) return CommunicatorError::DeviceError;
+        if(m_lora->startReceive( rxCapacity, SX126X_RX_TIMEOUT_INF) != LoRa::LoraError::OK) return CommunicatorError::DeviceError;
         return CommunicatorError::OK;
-    } 
-    
-    
+    }
     return CommunicatorError::OK;
 }
 
@@ -149,6 +157,26 @@ Communicator::CommunicatorError Communicator::sendSystemTelemetryPayload(const T
         ++m_communicatorDroppedCount;
         return CommunicatorError::QueueError;
     }
+    return CommunicatorError::OK;
+}
+
+Communicator::CommunicatorError Communicator::sendRawData(const uint8_t* data, size_t length){
+    if (data == nullptr || length == 0U) return CommunicatorError::BadParama;
+        
+    if (length > RAW_DATA_MAX_LENGTH) return CommunicatorError::TxPacketTooLong;
+       
+    CommunicatorEvent event{};
+    event.type = CommunicatorEventType::RawData;
+
+    event.data.raw.length = static_cast<uint16_t>(length);  
+
+    memcpy(event.data.raw.data, data, length);
+
+    if (xQueueSend(m_communicatorQueue, &event, 0) != pdPASS){
+        ++m_communicatorDroppedCount;
+        return CommunicatorError::QueueFull;
+    }
+
     return CommunicatorError::OK;
 }
 

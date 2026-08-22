@@ -11,7 +11,6 @@ class RocketCommand final{
 public:
 
 private:
-    Rocket& m_rocket;
     Application::Command::CommandContext m_context;
     RSL::Command::CommandEngine m_engine;
     static void resultCallback(void* userData, const RSL::Command::CommandEngine::CommandResult& result);

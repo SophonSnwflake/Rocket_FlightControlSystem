@@ -73,7 +73,6 @@ public:
         } data;
     };
 
-
 private:
     IMU *m_imu;
     GNSS *m_gnss;
@@ -84,6 +83,7 @@ private:
     RocketLog::FlightLogger *m_logger;
     RocketLog::RocketLogger *m_loggerWriter;
     RocketCommand *m_uartCommand;
+    RocketCommand *m_loraCommand;
     Communicator *m_communicator;
     LaunchPhase m_launchPhase = LaunchPhase::STANDBY;
     LaunchPhase m_lastLaunchPhase = LaunchPhase::STANDBY;
@@ -108,12 +108,18 @@ private:
     bool m_isInitedCompleted = false;
     bool m_isParachuteIgnited = false;
     bool m_isPrintingGNSSMessage = false;
-    uint8_t m_commandRxBuffer[COMMAND_RX_BUFFER_SIZE];
-    volatile uint16_t m_commandRxLength = 0;
-    volatile bool m_commandRxPending = false;
+
+    
+    uint8_t m_UARTCommandRxBuffer[UART_COMMAND_RX_BUFFER_SIZE];
+    volatile uint16_t m_UARTCommandRxLength = 0;
+    volatile bool m_UARTCommandRxPending = false;
+
+    uint8_t m_LoRaCommandRxBuffer[LORA_COMMAND_RX_BUFFER_SIZE];
+    volatile uint16_t m_LoRaCommandRxLength = 0;
+    volatile bool m_LoRaCommandRxPending = false;
 
 public:
-    Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barometer, ActiveBuzzer *buzzer, RocketLog::FlightLogger *logger, RocketLog::RocketLogger *loggerWriter, RocketCommand *uartCommand, Communicator *communicator);
+    Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barometer, ActiveBuzzer *buzzer, RocketLog::FlightLogger *logger, RocketLog::RocketLogger *loggerWriter, RocketCommand *uartCommand, RocketCommand *loraCommand, Communicator *communicator);
     virtual ~Rocket() = default;
     // 初始化相关
     RocketError Init();
@@ -136,14 +142,17 @@ public:
     void GNSSLoop();
     bool setPhaseBetweenSTANDBYandARMED(LaunchPhase launchPhase);
     void setUARTCommand(RocketCommand* command);
+    void setLoRaCommand(RocketCommand* command);
+
+    bool loraPrintf(const char* format, ...);
     
 // 通信回调
+    void receiveUARTCommandData(const uint8_t *pRxData, size_t rxDataLength);
     void handlePendingUARTCommand();
-    void receiveUARTCommandData(const uint8_t *pRxData, uint16_t rxDataLength);
     void receiveUARTGNSSData(uint8_t *pRxData, uint16_t rxDataLength);
 
-    void receiveLoRaCommandData(const uint8_t *pRxData, uint16_t rxDataLength);
-    
+    void receiveLoRaCommandData(const uint8_t *pRxData, size_t rxDataLength);
+    void handlePendingLoRaCommand();
 private:
     // 初始化相关
     RocketError initLoRa();

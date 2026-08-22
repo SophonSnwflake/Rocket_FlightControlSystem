@@ -68,11 +68,11 @@ Communicator communicator(&lora);
 
 BMP388 barometer(barometerHandle, barometerConfig);
 
-Rocket rocket(&imu, &gnss, &flash, &lora, &barometer,&buzzer,&logger,&loggerWriter,nullptr,&communicator);
+Rocket rocket(&imu, &gnss, &flash, &lora, &barometer, &buzzer, &logger, &loggerWriter, nullptr, nullptr, &communicator);
 
 RocketCommand uartCommand(rocket, Application::Command::CommandSource::UART);
 
-
+RocketCommand loraCommand(rocket, Application::Command::CommandSource::LoRa);
 
 extern uint16_t g_last_size;
 extern uint16_t g_callback_count;
@@ -81,6 +81,7 @@ extern "C" void rocket_task(void *argument)
 {
     TickType_t last_wake_time = xTaskGetTickCount();
     rocket.setUARTCommand(&uartCommand);
+    rocket.setLoRaCommand(&loraCommand);
     rocket.Init();
 
     while (true)

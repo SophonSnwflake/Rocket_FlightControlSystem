@@ -33,6 +33,11 @@ constexpr uint8_t PROTOCOL_VERSION = 1;
  */
 constexpr size_t PACKET_HEADER_SIZE = 8;
 
+/**
+ * @brief 最长原始信息（字节）
+ */
+static constexpr size_t RAW_DATA_MAX_LENGTH = 128;
+
 /* ==================== 包类型定义 ==================== */
 
 enum class PacketType : uint8_t {

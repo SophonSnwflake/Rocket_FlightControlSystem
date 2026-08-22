@@ -7,6 +7,8 @@
 #include "stm32f4xx_hal_gpio.h"
 #include <cstddef>
 #include <cstdint>
+#include <cstdarg>
+#include <cstdio>
 
 static const char* resultName(Flash::Result r)
 {
@@ -40,6 +42,7 @@ Rocket::Rocket(IMU *imu,
             RocketLog::FlightLogger *logger, 
             RocketLog::RocketLogger *loggerWriter, 
             RocketCommand *uartCommand,
+            RocketCommand *loraCommand,
             Communicator *communicator):
     m_imu(imu),
     m_gnss(gnss),
@@ -52,9 +55,8 @@ Rocket::Rocket(IMU *imu,
     m_isInitedCompleted(false),
     m_launchPhase(LaunchPhase::STANDBY),
     m_uartCommand(uartCommand),
+    m_loraCommand(loraCommand),
     m_communicator(communicator)
-    
-
 {
     m_logQueue = xQueueCreateStatic(
     LOG_QUEUE_LENGTH,
@@ -98,6 +100,7 @@ Rocket::RocketError Rocket::Init(){
     if (initFlash() != RocketError::OK) return RocketError::DeviceError;
     
     printf("DeviceInitSuccess!\r\n");
+    loraPrintf("DeviceInitSuccess!\r\n");
     m_isInitedCompleted = true;
     return RocketError::OK;
 }
@@ -179,13 +182,12 @@ Rocket::RocketError Rocket::initLoRa(){
 // 执行逻辑
 //==============================================================================
 
-void Rocket::rocketTotalLoop()
-{
-    handlePendingUARTCommand();
+void Rocket::rocketTotalLoop(){  
     phaseSelect();
     parachuteLoop();
     sendFlightTelemetryPayloadLoop();
-
+    handlePendingUARTCommand();
+    handlePendingLoRaCommand();
     m_nowTimeus = getTimestampUs();
 }
 
@@ -325,8 +327,7 @@ void Rocket::sendFlightTelemetryPayloadLoop(){
 
 void Rocket::loggerLoop()
 {
-    if (!m_logger->isStarted())
-        return;
+    if (!m_logger->isStarted()) return;
 
     LogEvent event{};
 
@@ -403,10 +404,19 @@ void Rocket::GNSSLoop(){
 
 void Rocket::communicationLoop(){
     if(!m_lora->isLoRaBegined()) return;
-    m_communicator->CommunicatorLoop();
+
+    uint8_t rxBuffer[LORA_COMMAND_RX_BUFFER_SIZE]{};
+    size_t rxLength;
+    bool isReceivedData = false;
+    if(m_communicator->CommunicatorLoop(rxBuffer, LORA_COMMAND_RX_BUFFER_SIZE, rxLength, isReceivedData) != Communicator::CommunicatorError::OK) return;
+
+    if(isReceivedData == false) return;
+    if (rxBuffer == nullptr) return;
+    if(rxLength == 0) return;
+    if(rxLength > LORA_COMMAND_RX_BUFFER_SIZE) return;
+
+    receiveLoRaCommandData(rxBuffer, rxLength);
 }
-
-
 
 Rocket::RocketError Rocket::eraseAllChipForNewFlight(){
     RocketLog::RocketLogger::FlashLogError state;
@@ -475,42 +485,71 @@ bool Rocket::setPhaseBetweenSTANDBYandARMED(LaunchPhase launchPhase){
     return true;
 }
 
-void Rocket::receiveUARTCommandData(const uint8_t* pRxData, uint16_t rxDataLength)
-{
-    if (pRxData == nullptr || rxDataLength == 0)
-        return;
+void Rocket::receiveUARTCommandData(const uint8_t* pRxData, size_t rxDataLength){
+    if (pRxData == nullptr || rxDataLength == 0) return; 
+    if (rxDataLength > UART_COMMAND_RX_BUFFER_SIZE) return;
+    if (m_UARTCommandRxPending) return;
 
-    if (rxDataLength > COMMAND_RX_BUFFER_SIZE)
-        return;
+    memcpy(m_UARTCommandRxBuffer, pRxData, rxDataLength);
 
-    if (m_commandRxPending)
-        return;
-
-    memcpy(
-        m_commandRxBuffer,
-        pRxData,
-        rxDataLength
-    );
-
-    m_commandRxLength = rxDataLength;
-
-    m_commandRxPending = true;
+    m_UARTCommandRxLength = rxDataLength;
+    m_UARTCommandRxPending = true;
 }
 
 void Rocket::handlePendingUARTCommand(){
-    if (!m_commandRxPending)return;
-    m_commandRxPending = false;
-    m_uartCommand->feed(reinterpret_cast<const char*>(m_commandRxBuffer), static_cast<size_t>(m_commandRxLength));
-    
+    if (!m_UARTCommandRxPending)return;
+    m_uartCommand->feed(reinterpret_cast<const char*>(m_UARTCommandRxBuffer), static_cast<size_t>(m_UARTCommandRxLength)); 
+    m_UARTCommandRxPending = false;
 }
 
-void Rocket::receiveLoRaCommandData(const uint8_t *pRxData, uint16_t rxDataLength){
+void Rocket::receiveLoRaCommandData(const uint8_t *pRxData, size_t rxDataLength){
+    if (pRxData == nullptr || rxDataLength == 0) return;
+    if (rxDataLength > LORA_COMMAND_RX_BUFFER_SIZE) return;
+    if (m_LoRaCommandRxPending) return;
 
+    memcpy(m_LoRaCommandRxBuffer, pRxData, rxDataLength);
+
+    m_LoRaCommandRxLength = rxDataLength;
+    m_LoRaCommandRxPending = true;
+}
+
+void Rocket::handlePendingLoRaCommand(){
+    if (!m_LoRaCommandRxPending)return;
+    m_loraCommand->feed(reinterpret_cast<const char*>(m_LoRaCommandRxBuffer), static_cast<size_t>(m_LoRaCommandRxLength)); 
+    m_LoRaCommandRxPending = false;
 }
 
 void Rocket::setUARTCommand(RocketCommand* command)
 {
     m_uartCommand = command;
+}
+
+void Rocket::setLoRaCommand(RocketCommand* command)
+{
+    m_loraCommand = command;
+}
+
+bool Rocket::loraPrintf(const char* format, ...){
+    if(format == nullptr) return false;
+    if(m_communicator == nullptr) return false;
+
+    char buffer[LORA_PRINTF_BUFFER_SIZE]{};
+    va_list args;
+    va_start(args, format);
+
+    const int length = vsnprintf(buffer, sizeof(buffer), format, args);
+
+    va_end(args);
+
+    if (length < 0) return false;
+
+    if (static_cast<size_t>(length) >= sizeof(buffer)) return false;
+
+    if (length == 0) return true;
+
+    const Communicator::CommunicatorError result = m_communicator->sendRawData(reinterpret_cast<const uint8_t*>(buffer),static_cast<size_t>(length));
+
+    return result == Communicator::CommunicatorError::OK;
 }
 
 

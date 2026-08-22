@@ -2,7 +2,6 @@
 #include "cmd_registry.hpp"
 
 RocketCommand::RocketCommand(Rocket& rocket, Application::Command::CommandSource source) :
-    m_rocket(rocket),
     m_context{&rocket, source},
     m_engine(
         Application::Command::getRootCommands(),

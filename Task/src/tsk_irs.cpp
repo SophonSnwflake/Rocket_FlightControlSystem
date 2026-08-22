@@ -8,12 +8,7 @@ void uart2Callback(uint8_t *pRxData, uint16_t rxDataLength){
     rocket.receiveUARTGNSSData(pRxData, rxDataLength);
 }
 
-// 调试用
-volatile uint32_t uart1RxCount = 0;
-// 调试用
 
 void uart1Callback(uint8_t *pRxData, uint16_t rxDataLength){
-    ++uart1RxCount;
-
     rocket.receiveUARTCommandData(pRxData, rxDataLength);
 }

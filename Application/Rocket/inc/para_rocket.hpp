@@ -3,7 +3,9 @@
 #include "math_const.h"
 
 
-#define COMMAND_RX_BUFFER_SIZE                              256
+#define UART_COMMAND_RX_BUFFER_SIZE                         256
+#define LORA_COMMAND_RX_BUFFER_SIZE                         256
+#define LORA_PRINTF_BUFFER_SIZE                             128U
 #define LOG_QUEUE_LENGTH                                    64
 #define LAUNCH_ACCEL_CRITICAL_VALUE                         10.0f
 #define PARACHUTE_PITCH_CRITICAL_POINT                      120.0f/90.0f * MATH_PI
