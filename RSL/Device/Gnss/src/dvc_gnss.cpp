@@ -28,7 +28,6 @@ GNSS::GNSS(){
 
 NEOM9N_UART::NEOM9N_UART(){
     m_para_size = 0;
-    m_data_ready = false;
 }
 
 uint8_t GNSS::nmea_checksum(const char *sentence)

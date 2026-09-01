@@ -4,7 +4,7 @@
 
 
 #define UART_COMMAND_RX_BUFFER_SIZE                         256
-#define LORA_COMMAND_RX_BUFFER_SIZE                         256
+#define LORA_COMMAND_RX_BUFFER_SIZE                         255
 #define LORA_PRINTF_BUFFER_SIZE                             128U
 #define LOG_QUEUE_LENGTH                                    64
 #define LAUNCH_ACCEL_CRITICAL_VALUE                         10.0f

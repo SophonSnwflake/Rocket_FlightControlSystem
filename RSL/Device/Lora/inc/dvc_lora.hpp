@@ -77,6 +77,7 @@ public:
     virtual RadioEvent getEvent() = 0;
     virtual LoraError getRxBufferStatus(uint8_t& payloadLength, uint8_t& bufferOffset, bool isUseDummy) = 0;
     virtual bool isGetIrq() = 0;
+    virtual uint32_t getIrqFlags() = 0;
     bool isLoRaBegined() {return m_isLoRabegined;}
 
 protected:
@@ -169,6 +170,7 @@ public:
     RadioEvent getEvent() override;
     LoraError getRxBufferStatus(uint8_t& payloadLength, uint8_t& bufferOffset, bool isUseDummy) override; 
     bool isGetIrq() override;
+    uint32_t getIrqFlags() override;  
     LoraError readData(uint8_t* data, size_t capacity, size_t& receivedLength) override;
     // 总线锁
     class SPIGuard
@@ -223,7 +225,7 @@ private:
     LoraError getDeviceErrors(uint16_t* opError);
     LoraError getPacketType(uint8_t* packetType); 
     uint32_t getTimeOnAir(size_t len);
-    uint32_t getIrqFlags();                                                                  
+    // uint32_t getIrqFlags();                                                                  
 
 // Set相关
     LoraError soluteModlationParams(uint8_t spreadingFactor, fp32 bandwidthKhz, uint8_t codingRate);

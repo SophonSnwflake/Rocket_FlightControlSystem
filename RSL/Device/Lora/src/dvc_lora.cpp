@@ -645,9 +645,9 @@ uint32_t SX1268::getTimeOnAir(size_t len){
 }
 
 uint32_t SX1268::getIrqFlags() {
-  uint8_t data[] = { 0x00, 0x00 };
-  SPIreadStream(SX126X_CMD_GET_IRQ_STATUS, data, 2, true);
-  return(((uint32_t)(data[0]) << 8) | data[1]);
+    uint8_t data[] = { 0x00, 0x00 };
+    SPIreadStream(SX126X_CMD_GET_IRQ_STATUS, data, 2, true);
+    return(((uint32_t)(data[0]) << 8) | data[1]);
 }
 
 

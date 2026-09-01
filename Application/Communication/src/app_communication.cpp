@@ -31,12 +31,13 @@ Communicator::CommunicatorError Communicator::CommunicatorLoop(uint8_t *rxBuffer
     rxLength = 0U;
     isReceivedData = false;
     // ================= RX =================
-    if(m_lora->isGetIrq() && m_lora->getEvent() == LoRa::RadioEvent::RxDone){
-
+    if(m_lora->getEvent() == LoRa::RadioEvent::RxDone)
+    {
+        printf("YES!I!RECEIVED!\r\n");
         const LoRa::LoraError loraResult =  m_lora->readData(rxBuffer,rxCapacity, rxLength);
 
         if(loraResult == LoRa::LoraError::PacketTooLong) return CommunicatorError::RxPacketTooLong;
-           
+            
         if(loraResult != LoRa::LoraError::OK) return CommunicatorError::DeviceError;
         
         isReceivedData = true;
@@ -44,6 +45,9 @@ Communicator::CommunicatorError Communicator::CommunicatorLoop(uint8_t *rxBuffer
     }
     // ================= TX =================
     else if (xQueueReceive(m_communicatorQueue, &event, 0) == pdPASS){
+        // TODO:测时间用，测完删除
+        uint32_t start = HAL_GetTick();
+        // TODO:测时间用，测完删除
         isReceivedData = false;
         switch (event.type)
         {
@@ -109,7 +113,10 @@ Communicator::CommunicatorError Communicator::CommunicatorLoop(uint8_t *rxBuffer
             default:
                 break;
         }
-        if(m_lora->startReceive( rxCapacity, SX126X_RX_TIMEOUT_INF) != LoRa::LoraError::OK) return CommunicatorError::DeviceError;
+        if(m_lora->startReceive( rxCapacity, SX126X_RX_TIMEOUT_INF) != LoRa::LoraError::OK){
+            return CommunicatorError::DeviceError;
+        }
+
         return CommunicatorError::OK;
     }
     return CommunicatorError::OK;

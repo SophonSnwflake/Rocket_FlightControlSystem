@@ -122,7 +122,6 @@ public:
 protected:  
     uint8_t m_rxBuffer[2048];
     uint16_t m_para_size;
-    bool m_data_ready;
     MemoryState m_memoryState;
 
 public:

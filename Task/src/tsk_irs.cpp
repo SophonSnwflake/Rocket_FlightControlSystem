@@ -8,7 +8,6 @@ void uart2Callback(uint8_t *pRxData, uint16_t rxDataLength){
     rocket.receiveUARTGNSSData(pRxData, rxDataLength);
 }
 
-
 void uart1Callback(uint8_t *pRxData, uint16_t rxDataLength){
     rocket.receiveUARTCommandData(pRxData, rxDataLength);
 }
