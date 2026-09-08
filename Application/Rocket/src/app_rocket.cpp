@@ -412,7 +412,7 @@ void Rocket::communicationLoop(){
     uint8_t rxBuffer[LORA_COMMAND_RX_BUFFER_SIZE]{};
     size_t rxLength;
     bool isReceivedData = false;
-    if(m_communicator->CommunicatorLoop(rxBuffer, LORA_COMMAND_RX_BUFFER_SIZE, rxLength, isReceivedData) != Communicator::CommunicatorError::OK) return;
+    if(m_communicator->CommunicatorLoop(rxBuffer, LORA_COMMAND_RX_BUFFER_SIZE, rxLength, isReceivedData, 0) != Communicator::CommunicatorError::OK) return;
 
     if(isReceivedData == false) return;
     if (rxBuffer == nullptr) return;

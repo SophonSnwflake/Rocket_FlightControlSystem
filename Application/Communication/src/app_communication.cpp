@@ -6,6 +6,7 @@ Communicator::Communicator(LoRa *lora) :
     m_lora(lora)
 {
     m_communicatorQueue = xQueueCreateStatic(COMMUNICATOR_QUEUE_LENGTH, sizeof(CommunicatorEvent), m_communicatorQueueStorage, &m_communicatorQueueControlBlock);
+    m_lastTime = xTaskGetTickCount();
 }
 
 /**
@@ -21,15 +22,23 @@ Communicator::Communicator(LoRa *lora) :
  * @return CommunicatorError::OK 本轮处理成功或无事件；
  *         其他返回值表示初始化、队列、编码或 LoRa 设备错误。
  */
-Communicator::CommunicatorError Communicator::CommunicatorLoop(uint8_t *rxBuffer, size_t rxCapacity, size_t &rxLength, bool &isReceivedData){
+Communicator::CommunicatorError Communicator::CommunicatorLoop(uint8_t *rxBuffer, size_t rxCapacity, size_t &rxLength, bool &isReceivedData, fp32 RXPercentage){
     if (m_lora == nullptr)return CommunicatorError::DidNotInit;
     if (!m_lora->isLoRaBegined())return CommunicatorError::DidNotInit;
     if (m_communicatorQueue == nullptr)return CommunicatorError::QueueError;
     if (rxBuffer == nullptr || rxCapacity == 0U) return CommunicatorError::BadParama;
+    if (RXPercentage < 0.0f || RXPercentage > 1.0f) return CommunicatorError::BadParama;
 
     CommunicatorEvent event{};
     rxLength = 0U;
     isReceivedData = false;
+
+    TickType_t now = xTaskGetTickCount();
+    fp32 dt = (fp32)(now - m_lastTime) * 1000.0f / configTICK_RATE_HZ;
+    m_lastTime = now;
+
+    m_rxTxAirtimeError += (1.0f - RXPercentage) * dt;
+
     // ================= RX =================
     if(m_lora->getEvent() == LoRa::RadioEvent::RxDone)
     {
@@ -44,11 +53,10 @@ Communicator::CommunicatorError Communicator::CommunicatorLoop(uint8_t *rxBuffer
         return CommunicatorError::OK;
     }
     // ================= TX =================
-    else if (xQueueReceive(m_communicatorQueue, &event, 0) == pdPASS){
-        // TODO:测时间用，测完删除
-        uint32_t start = HAL_GetTick();
-        // TODO:测时间用，测完删除
+    else if (m_rxTxAirtimeError >= 0.0f && xQueueReceive(m_communicatorQueue, &event, 0) == pdPASS){
         isReceivedData = false;
+        TickType_t txStart = 0;
+        TickType_t txEnd = 0;
         switch (event.type)
         {
             case CommunicatorEventType::Flight:
@@ -61,6 +69,7 @@ Communicator::CommunicatorError Communicator::CommunicatorLoop(uint8_t *rxBuffer
                 result = encodeFlightTelemetry(&event.data.flight, &buff[HEADER_SIZE], FLIGHT_PAYLOAD_SIZE);
                 if (result != CommunicatorError::OK)return result;
 
+                txStart = xTaskGetTickCount();
                 LoRa::LoraError loraResult = m_lora->transmit(buff, HEADER_SIZE + FLIGHT_PAYLOAD_SIZE);
                 
                 if (loraResult != LoRa::LoraError::OK)return CommunicatorError::DeviceError;
@@ -78,6 +87,7 @@ Communicator::CommunicatorError Communicator::CommunicatorLoop(uint8_t *rxBuffer
                 result = encodeGNSSTelemetry(&event.data.gnss, &buff[HEADER_SIZE], GNSS_PAYLOAD_SIZE);
                 if (result != CommunicatorError::OK)return result;
 
+                txStart = xTaskGetTickCount();
                 LoRa::LoraError loraResult = m_lora->transmit(buff, HEADER_SIZE + GNSS_PAYLOAD_SIZE);
                 
                 if (loraResult != LoRa::LoraError::OK)return CommunicatorError::DeviceError;
@@ -95,6 +105,7 @@ Communicator::CommunicatorError Communicator::CommunicatorLoop(uint8_t *rxBuffer
                 result = encodeSystemTelemetry(&event.data.system, &buff[HEADER_SIZE], SYSTEM_PAYLOAD_SIZE);
                 if (result != CommunicatorError::OK)return result;
 
+                txStart = xTaskGetTickCount();
                 LoRa::LoraError loraResult = m_lora->transmit(buff, HEADER_SIZE + SYSTEM_PAYLOAD_SIZE);
                 
                 if (loraResult != LoRa::LoraError::OK)return CommunicatorError::DeviceError;
@@ -104,6 +115,7 @@ Communicator::CommunicatorError Communicator::CommunicatorLoop(uint8_t *rxBuffer
 
             case CommunicatorEventType::RawData:
             {
+                txStart = xTaskGetTickCount();
                 const auto loraResult = m_lora->transmit(event.data.raw.data, event.data.raw.length);
 
                 if (loraResult != LoRa::LoraError::OK) return CommunicatorError::DeviceError;
@@ -111,12 +123,19 @@ Communicator::CommunicatorError Communicator::CommunicatorLoop(uint8_t *rxBuffer
             }
 
             default:
+                return CommunicatorError::OK;
                 break;
         }
+        txEnd = xTaskGetTickCount();  
+
         if(m_lora->startReceive( rxCapacity, SX126X_RX_TIMEOUT_INF) != LoRa::LoraError::OK){
             return CommunicatorError::DeviceError;
         }
 
+        fp32 txTime = (fp32)(txEnd - txStart) * 1000.0f / configTICK_RATE_HZ;
+
+        m_rxTxAirtimeError -= RXPercentage * txTime;
+        m_lastTime = txEnd;
         return CommunicatorError::OK;
     }
     return CommunicatorError::OK;

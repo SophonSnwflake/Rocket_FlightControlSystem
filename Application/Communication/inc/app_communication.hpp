@@ -65,10 +65,13 @@ private:
     QueueHandle_t m_communicatorQueue;
     uint16_t m_communicatorDroppedCount = 0;
 
+    fp32 m_rxTxAirtimeError = 0;
+    TickType_t m_lastTime = 0;
+
 public:
     Communicator(LoRa *lora);
     ~Communicator() = default;
-    CommunicatorError CommunicatorLoop(uint8_t *rxBuffer, size_t rxCapacity, size_t &packetLength, bool &isReceivedData);
+    CommunicatorError CommunicatorLoop(uint8_t *rxBuffer, size_t rxCapacity, size_t &rxLength, bool &isReceivedData,  fp32 RXPercentage);
     CommunicatorError sendFlightTelemetryPayload(const Telemetry::FlightTelemetryPayload *payload);
     CommunicatorError sendGNSSTelemetryPayload(const Telemetry::GNSSTelemetryPayload *payload);
     CommunicatorError sendSystemTelemetryPayload(const Telemetry::SystemTelemetryPayload *payload);
