@@ -12,7 +12,7 @@ extern "C" void lora_task(void *argument)
     while (true)
     {
         rocket.communicationLoop();
-        vTaskDelayUntil(&last_wake_time, 1);
+        vTaskDelayUntil(&last_wake_time, 10);
     }
 }
 }

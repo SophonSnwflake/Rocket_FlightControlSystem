@@ -2,6 +2,7 @@
 
 #include "math_const.h"
 
+#define GRAVITY_ACCELERATION_M_S2                           9.797f
 
 #define UART_COMMAND_RX_BUFFER_SIZE                         256
 #define LORA_COMMAND_RX_BUFFER_SIZE                         255

@@ -309,23 +309,35 @@ void Rocket::imuLoop()
 }
 
 void Rocket::sendFlightTelemetryPayloadLoop(){
-    uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
-    if(temTimeStamp_ms - m_lastFlightTelemetryTime_ms < FLIGHT_TELEMETRY_PERIOD_MS){
-        return;
+    switch(m_launchPhase){
+        case LaunchPhase::STANDBY:
+        case LaunchPhase::SELF_TEST:
+            break;
+
+        case LaunchPhase::ARMED:
+        case LaunchPhase::ASCENT:
+        case LaunchPhase::DESCENT:
+        case LaunchPhase::LANDED:
+            uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+            if(temTimeStamp_ms - m_lastFlightTelemetryTime_ms < FLIGHT_TELEMETRY_PERIOD_MS){
+                return;
+            }
+            m_lastFlightTelemetryTime_ms = temTimeStamp_ms;
+            Telemetry::FlightTelemetryPayload payload;
+            payload.timeStamp_ms = temTimeStamp_ms;
+            payload.flight_phase = translateLaunchFhaseIntoFlightPhase(m_launchPhase);
+
+            payload.roll_centidegree = static_cast<int16_t>((m_eulerAngle[0] * 180.0f/MATH_PI) * 100.0f);
+            payload.pitch_centidegree = static_cast<int16_t>((m_eulerAngle[1] * 180.0f/MATH_PI) * 100.0f);
+            payload.yaw_centidegree = static_cast<int16_t>((m_eulerAngle[2] * 180.0f/MATH_PI) * 100.0f);
+
+            payload.relative_altitude_mm = static_cast<int32_t>(m_altitude_m * 1000.0f);
+
+            payload.vertical_velocity_mm_s = static_cast<int32_t>(m_velocity_m_s * 1000.0f);
+            m_communicator->sendFlightTelemetryPayload(&payload);
+            break;
     }
-    m_lastFlightTelemetryTime_ms = temTimeStamp_ms;
-    Telemetry::FlightTelemetryPayload payload;
-    payload.timeStamp_ms = temTimeStamp_ms;
-    payload.flight_phase = translateLaunchFhaseIntoFlightPhase(m_launchPhase);
-
-    payload.pitch_centidegree = static_cast<int16_t>((m_eulerAngle[1] * 180.0f/MATH_PI) * 100.0f);
-    payload.roll_centidegree = static_cast<int16_t>((m_eulerAngle[0] * 180.0f/MATH_PI) * 100.0f);
-    payload.yaw_centidegree = static_cast<int16_t>((m_eulerAngle[2] * 180.0f/MATH_PI) * 100.0f);
-
-    payload.relative_altitude_mm = static_cast<uint32_t>(m_altitude_m * 1000);
-
-    payload.vertical_velocity_mm_s = static_cast<uint32_t>(m_velocity_m_s * 1000);
-    m_communicator->sendFlightTelemetryPayload(&payload);
+    
 }
 
 
@@ -412,14 +424,32 @@ void Rocket::communicationLoop(){
     uint8_t rxBuffer[LORA_COMMAND_RX_BUFFER_SIZE]{};
     size_t rxLength;
     bool isReceivedData = false;
-    if(m_communicator->CommunicatorLoop(rxBuffer, LORA_COMMAND_RX_BUFFER_SIZE, rxLength, isReceivedData, 0.7) != Communicator::CommunicatorError::OK) return;
 
-    if(isReceivedData == false) return;
-    if (rxBuffer == nullptr) return;
-    if(rxLength == 0) return;
-    if(rxLength > LORA_COMMAND_RX_BUFFER_SIZE) return;
+    switch(m_launchPhase){
+        case LaunchPhase::STANDBY:
+            if(m_communicator->CommunicatorLoop(rxBuffer, 
+                LORA_COMMAND_RX_BUFFER_SIZE, 
+                rxLength, isReceivedData, 
+                0.8) != Communicator::CommunicatorError::OK) return;
 
-    receiveLoRaCommandData(rxBuffer, rxLength);
+            if(isReceivedData == false) return;
+            if (rxBuffer == nullptr) return;
+            if(rxLength == 0) return;
+            if(rxLength > LORA_COMMAND_RX_BUFFER_SIZE) return;
+            receiveLoRaCommandData(rxBuffer, rxLength);
+            break;
+
+        case LaunchPhase::ARMED:
+        case LaunchPhase::ASCENT:
+        case LaunchPhase::DESCENT:
+        case LaunchPhase::LANDED:
+            if(m_communicator->CommunicatorLoop(rxBuffer, 
+                LORA_COMMAND_RX_BUFFER_SIZE, 
+                rxLength, isReceivedData, 
+                0.0) != Communicator::CommunicatorError::OK) return;
+        
+            break;
+    }
 }
 
 Rocket::RocketError Rocket::eraseAllChipForNewFlight(){
@@ -455,7 +485,7 @@ void Rocket::phaseSelect(){
                 m_launchPhase = LaunchPhase::DESCENT;
                 break;
             }
-            if (isPitchOurOfCritialPoint()){
+            if (isPitchOutOfCritialPoint()){
                 m_pitchParachuteConfirmTimes ++;
                 if(m_pitchParachuteConfirmTimes >= PARACHUTE_PITCH_CONFIRM_TIMES){
                     m_launchPhase = LaunchPhase::DESCENT;
@@ -558,14 +588,14 @@ bool Rocket::loraPrintf(const char* format, ...){
 
 
 bool Rocket::isAccelLaunched(){
-    if(m_rawAccel[2] >= LAUNCH_ACCEL_CRITICAL_VALUE){
+    if(m_rawAccel[2] >= LAUNCH_ACCEL_CRITICAL_VALUE + GRAVITY_ACCELERATION_M_S2){
         return true;
     }
     return false;
 }
 
-bool Rocket::isPitchOurOfCritialPoint(){
-    if (m_eulerAngle[0] >= PARACHUTE_PITCH_CRITICAL_POINT){
+bool Rocket::isPitchOutOfCritialPoint(){
+    if (m_eulerAngle[1] >= PARACHUTE_PITCH_CRITICAL_POINT){
         return true;
     }
     return false;

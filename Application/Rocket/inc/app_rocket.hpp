@@ -130,7 +130,7 @@ public:
     // 状态指示相关
     bool isInitCompleted() {return m_isInitedCompleted;}
     bool isAccelLaunched();
-    bool isPitchOurOfCritialPoint();
+    bool isPitchOutOfCritialPoint();
     LaunchPhase getPhase(){return m_launchPhase;}
 
     // 执行逻辑
