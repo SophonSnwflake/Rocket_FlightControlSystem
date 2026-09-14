@@ -136,6 +136,9 @@ Communicator::CommunicatorError Communicator::CommunicatorLoop(uint8_t *rxBuffer
 
         m_rxTxAirtimeError -= RXPercentage * txTime;
         m_lastTime = txEnd;
+        UBaseType_t waiting = uxQueueMessagesWaiting(m_communicatorQueue);
+
+        printf("Queue waiting: %lu\r\n", (unsigned long)waiting);
         return CommunicatorError::OK;
     }
     return CommunicatorError::OK;
