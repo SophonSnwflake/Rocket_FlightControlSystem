@@ -66,6 +66,11 @@ file(GLOB_RECURSE RSL_DEVICE_LORA_SOURCES
     "Device/Lora/src/*.cpp"
 )
 
+file(GLOB_RECURSE RSL_DEVICE_VOFA_SOURCES
+    "Device/VoFa/src/*.c"
+    "Device/VoFa/src/*.cpp"
+)
+
 
 file(GLOB_RECURSE RSL_DRIVER_SPI_SOURCES
     "Driver/Spi/src/*.c"
@@ -104,6 +109,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${RSL_DEVICE_GNSS_SOURCES}
     ${RSL_DEVICE_IMU_SOURCES}
     ${RSL_DEVICE_LORA_SOURCES}
+    ${RSL_DEVICE_VOFA_SOURCES}
 
     ${RSL_DRIVER_SPI_SOURCES}
     ${RSL_DRIVER_TIME_SOURCES}
@@ -130,6 +136,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     Device/Lora/inc
     Device/define
     Device/GNSS/inc
+    Device/VoFa/inc
 
     Driver/Spi/inc
     Driver/Time/inc
