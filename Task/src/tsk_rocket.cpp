@@ -8,6 +8,8 @@
 #include "dvc_barometer.hpp"
 #include "mid_logger.hpp"
 #include "app_logger.hpp"
+#include "dvc_vofa.hpp"
+#include "usart.h"
 
 using Vector3f = RSLMath::Vector3f;
 using Matrix33f = RSLMath::Matrix33f; 
@@ -68,7 +70,9 @@ Communicator communicator(&lora);
 
 BMP388 barometer(barometerHandle, barometerConfig);
 
-Rocket rocket(&imu, &gnss, &flash, &lora, &barometer, &buzzer, &logger, &loggerWriter, nullptr, nullptr, &communicator);
+VoFa vofa(3, &huart1);
+
+Rocket rocket(&imu, &gnss, &flash, &lora, &barometer, &buzzer, &logger, &loggerWriter, nullptr, nullptr, &communicator, &vofa);
 
 RocketCommand uartCommand(rocket, Application::Command::CommandSource::UART);
 

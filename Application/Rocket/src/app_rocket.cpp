@@ -1,5 +1,6 @@
 #include "app_rocket.hpp"
 #include "agr_telemetry_protocal.hpp"
+#include "dvc_vofa.hpp"
 #include "mid_logger.hpp"
 #include "stm32f4xx_hal_gpio.h"
 #include "math_const.h"
@@ -43,7 +44,8 @@ Rocket::Rocket(IMU *imu,
             RocketLog::RocketLogger *loggerWriter, 
             RocketCommand *uartCommand,
             RocketCommand *loraCommand,
-            Communicator *communicator):
+            Communicator *communicator,
+            VoFa *vofa):
     m_imu(imu),
     m_gnss(gnss),
     m_flash(flash),
@@ -56,7 +58,8 @@ Rocket::Rocket(IMU *imu,
     m_launchPhase(LaunchPhase::STANDBY),
     m_uartCommand(uartCommand),
     m_loraCommand(loraCommand),
-    m_communicator(communicator)
+    m_communicator(communicator),
+    m_vofa(vofa)
 {
     m_logQueue = xQueueCreateStatic(
     LOG_QUEUE_LENGTH,
@@ -192,6 +195,11 @@ void Rocket::rocketTotalLoop(){
     sendFlightTelemetryPayloadLoop();
     handlePendingUARTCommand();
     handlePendingLoRaCommand();
+
+    // TODO:VoFa调试，用完删除
+    m_vofa->voFaLoop();
+    // TODO:VoFa调试，用完删除
+
     m_nowTimeus = getTimestampUs();
 }
 
@@ -229,6 +237,13 @@ void Rocket::imuLoop()
     m_eulerAngle = m_imu->solveAttitude();
     taskEXIT_CRITICAL();
     m_rawAccel = m_imu->getAccelRawData();
+
+    // TODO:VoFa调试，用完删除
+    m_vofa->setChannel(1, m_eulerAngle[0]);
+    m_vofa->setChannel(2, m_eulerAngle[1]);
+    m_vofa->setChannel(3, m_eulerAngle[2]);
+    // TODO:VoFa调试，用完删除
+
 
     switch (m_launchPhase)
     {  

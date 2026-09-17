@@ -19,6 +19,7 @@
 #include "app_logger.hpp"
 #include "mid_logger.hpp"
 #include "app_communication.hpp"
+#include "dvc_vofa.hpp"
 #include "para_rocket.hpp"
 #include "queue.h"
 #include <cstdint>
@@ -85,6 +86,7 @@ private:
     RocketCommand *m_uartCommand;
     RocketCommand *m_loraCommand;
     Communicator *m_communicator;
+    VoFa *m_vofa;
     LaunchPhase m_launchPhase = LaunchPhase::STANDBY;
     LaunchPhase m_lastLaunchPhase = LaunchPhase::STANDBY;
 
@@ -119,7 +121,19 @@ private:
     volatile bool m_LoRaCommandRxPending = false;
 
 public:
-    Rocket(IMU *imu, GNSS *gnss, W25Q128 *flash, SX1268 *lora, BMP388 *barometer, ActiveBuzzer *buzzer, RocketLog::FlightLogger *logger, RocketLog::RocketLogger *loggerWriter, RocketCommand *uartCommand, RocketCommand *loraCommand, Communicator *communicator);
+    Rocket(IMU *imu, 
+           GNSS *gnss, 
+           W25Q128 *flash, 
+           SX1268 *lora, 
+           BMP388 *barometer, 
+           ActiveBuzzer *buzzer, 
+           RocketLog::FlightLogger *logger, 
+           RocketLog::RocketLogger *loggerWriter, 
+           RocketCommand *uartCommand, 
+           RocketCommand *loraCommand, 
+           Communicator *communicator,
+           VoFa *vofa);
+    
     virtual ~Rocket() = default;
     // 初始化相关
     RocketError Init();
