@@ -42,7 +42,11 @@ Communicator::CommunicatorError Communicator::CommunicatorLoop(uint8_t *rxBuffer
     // ================= RX =================
     if(m_lora->getEvent() == LoRa::RadioEvent::RxDone)
     {
+        // TODO:调试输出，用完删除
         printf("YES!I!RECEIVED!\r\n");
+        // TODO:调试输出，用完删除
+
+
         const LoRa::LoraError loraResult =  m_lora->readData(rxBuffer,rxCapacity, rxLength);
 
         if(loraResult == LoRa::LoraError::PacketTooLong) return CommunicatorError::RxPacketTooLong;
