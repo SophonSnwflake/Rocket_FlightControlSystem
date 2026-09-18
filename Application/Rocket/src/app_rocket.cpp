@@ -172,18 +172,18 @@ Rocket::RocketError Rocket::initLoRa(){
     10,                     // power
     8U                      // preambleLength
     };
-    LoRa::LoraError LoRaState;
-    LoRaState = m_lora->beginLoRa(loraConfig);
-    if(m_lora->startReceive( LORA_COMMAND_RX_BUFFER_SIZE, SX126X_RX_TIMEOUT_INF) != LoRa::LoraError::OK){
-        printf("firstStartReceiveFailed\r\n");
-    }
-    if(LoRaState == LoRa::LoraError::OK){
-        printf("LoraInitSuccess!\r\n");
-        return RocketError::OK;
-    }else{
+    const LoRa::LoraError beginResult = m_lora->beginLoRa(loraConfig);
+
+    if (beginResult != LoRa::LoraError::OK) {
         printf("LoraInitFailed!\r\n");
         return RocketError::DeviceError;
     }
+    if(m_lora->startReceive( LORA_COMMAND_RX_BUFFER_SIZE, SX126X_RX_TIMEOUT_INF) != LoRa::LoraError::OK){
+        printf("firstStartReceiveFailed\r\n");
+        return RocketError::DeviceError;
+    }
+    printf("LoraInitSuccess!\r\n");
+    return RocketError::OK;
     
 }
 
