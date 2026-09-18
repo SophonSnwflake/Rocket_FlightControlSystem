@@ -45,7 +45,8 @@ Rocket::Rocket(IMU *imu,
             RocketCommand *uartCommand,
             RocketCommand *loraCommand,
             Communicator *communicator,
-            VoFa *vofa):
+            VoFa *vofa,
+            VoltageProbe *voltageProbe):
     m_imu(imu),
     m_gnss(gnss),
     m_flash(flash),
@@ -59,7 +60,8 @@ Rocket::Rocket(IMU *imu,
     m_uartCommand(uartCommand),
     m_loraCommand(loraCommand),
     m_communicator(communicator),
-    m_vofa(vofa)
+    m_vofa(vofa),
+    m_voltageProbe(voltageProbe)
 {
     m_logQueue = xQueueCreateStatic(
     LOG_QUEUE_LENGTH,
@@ -195,9 +197,10 @@ void Rocket::rocketTotalLoop(){
     sendFlightTelemetryPayloadLoop();
     handlePendingUARTCommand();
     handlePendingLoRaCommand();
+    voltageProbeLoop();
 
     // TODO:VoFa调试，用完删除
-    m_vofa->voFaLoop();
+    // m_vofa->voFaLoop();
     // TODO:VoFa调试，用完删除
 
     m_nowTimeus = getTimestampUs();
@@ -239,9 +242,9 @@ void Rocket::imuLoop()
     m_rawAccel = m_imu->getAccelRawData();
 
     // TODO:VoFa调试，用完删除
-    m_vofa->setChannel(1, m_eulerAngle[0]);
-    m_vofa->setChannel(2, m_eulerAngle[1]);
-    m_vofa->setChannel(3, m_eulerAngle[2]);
+    // m_vofa->setChannel(0, m_eulerAngle[0] * 180.0f/MATH_PI);
+    // m_vofa->setChannel(1, m_eulerAngle[1] * 180.0f/MATH_PI);
+    // m_vofa->setChannel(2, m_eulerAngle[2] * 180.0f/MATH_PI);
     // TODO:VoFa调试，用完删除
 
 
@@ -324,21 +327,38 @@ void Rocket::imuLoop()
 }
 
 void Rocket::sendFlightTelemetryPayloadLoop(){
+    uint32_t temTimeStamp_ms;
+    Telemetry::FlightTelemetryPayload payload;
     switch(m_launchPhase){
         case LaunchPhase::STANDBY:
         case LaunchPhase::SELF_TEST:
+            temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+            if(temTimeStamp_ms - m_lastFlightTelemetryTime_ms < FLIGHT_TELEMETRY_PERIOD_STANDBY_MS){
+                return;
+            }
+            m_lastFlightTelemetryTime_ms = temTimeStamp_ms;
+            payload.timeStamp_ms = temTimeStamp_ms;
+            payload.flight_phase = translateLaunchFhaseIntoFlightPhase(m_launchPhase);
+
+            payload.roll_centidegree = static_cast<int16_t>((m_eulerAngle[0] * 180.0f/MATH_PI) * 100.0f);
+            payload.pitch_centidegree = static_cast<int16_t>((m_eulerAngle[1] * 180.0f/MATH_PI) * 100.0f);
+            payload.yaw_centidegree = static_cast<int16_t>((m_eulerAngle[2] * 180.0f/MATH_PI) * 100.0f);
+
+            payload.relative_altitude_mm = static_cast<int32_t>(m_altitude_m * 1000.0f);
+
+            payload.vertical_velocity_mm_s = static_cast<int32_t>(m_velocity_m_s * 1000.0f);
+            m_communicator->sendFlightTelemetryPayload(&payload);
             break;
 
         case LaunchPhase::ARMED:
         case LaunchPhase::ASCENT:
         case LaunchPhase::DESCENT:
         case LaunchPhase::LANDED:
-            uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+            temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
             if(temTimeStamp_ms - m_lastFlightTelemetryTime_ms < FLIGHT_TELEMETRY_PERIOD_MS){
                 return;
             }
             m_lastFlightTelemetryTime_ms = temTimeStamp_ms;
-            Telemetry::FlightTelemetryPayload payload;
             payload.timeStamp_ms = temTimeStamp_ms;
             payload.flight_phase = translateLaunchFhaseIntoFlightPhase(m_launchPhase);
 
@@ -465,6 +485,15 @@ void Rocket::communicationLoop(){
         
             break;
     }
+}
+
+void Rocket::voltageProbeLoop(){
+    if(m_voltageProbe == nullptr) return;
+    uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+    if(temTimeStamp_ms - m_lastVoltageProbeTime_ms < VOLTAGE_PROBE_PERIOD_MS)return;
+    m_lastVoltageProbeTime_ms = temTimeStamp_ms;
+    m_voltage = m_voltageProbe->readVoltage();
+    printf("Voltage: %.2f V\r\n", m_voltage);
 }
 
 Rocket::RocketError Rocket::eraseAllChipForNewFlight(){

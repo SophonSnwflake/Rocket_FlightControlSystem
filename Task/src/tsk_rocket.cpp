@@ -13,12 +13,14 @@
 
 using Vector3f = RSLMath::Vector3f;
 using Matrix33f = RSLMath::Matrix33f; 
+
 // 初始化IMU
 BMI088::CalibrationInfo cali = {
     {0.0f, 0.0f, 0.0f}, // gyroOffset
     {0.0f, 0.0f, 0.0f}, // accelOffset
     {0.0f, 0.0f, 0.0f}, // magnetOffset
-    {RSLMath::Matrix33f::ROTATION, MATH_PI / 2.0f, {0.0f, 0.0f, 1.0f}}}; // 纠正C板绕Z轴逆时针安装90°误差
+    {RSLMath::Matrix33f::ROTATION, -MATH_PI / 2.0f, {0.0f, 1.0f, 0.0f}}
+};
 
 QuaternionEKF myEKF(0.0f, 10.0f,0.001f, 1e6f, 1.0f, 0.0f, true, 1e-8f);
 
@@ -72,7 +74,9 @@ BMP388 barometer(barometerHandle, barometerConfig);
 
 VoFa vofa(3, &huart1);
 
-Rocket rocket(&imu, &gnss, &flash, &lora, &barometer, &buzzer, &logger, &loggerWriter, nullptr, nullptr, &communicator, &vofa);
+VoltageProbe voltageProbe(&hadc1);
+
+Rocket rocket(&imu, &gnss, &flash, &lora, &barometer, &buzzer, &logger, &loggerWriter, nullptr, nullptr, &communicator, &vofa, &voltageProbe);
 
 RocketCommand uartCommand(rocket, Application::Command::CommandSource::UART);
 

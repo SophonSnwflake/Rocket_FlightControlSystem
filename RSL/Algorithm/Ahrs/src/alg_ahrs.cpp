@@ -133,7 +133,7 @@ void AHRS::convertQuaternionToEulerAngle()
     fp32 q2 = m_quaternion[2];
     fp32 q3 = m_quaternion[3];
 
-    // 计算欧拉角 (ZYX顺序, 即yaw-pitch-roll)
+    // 计算欧拉角 (roll-pitch-yaw)
 
     // Roll (x轴旋转) - 绕X轴旋转的角度
     m_eulerAngle.x = atan2f(2.0f * (q0 * q1 + q2 * q3), 1.0f - 2.0f * (q1 * q1 + q2 * q2));

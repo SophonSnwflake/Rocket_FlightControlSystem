@@ -21,6 +21,7 @@
 #include "app_communication.hpp"
 #include "dvc_vofa.hpp"
 #include "para_rocket.hpp"
+#include "dvc_voltageProbe.hpp"
 #include "queue.h"
 #include <cstdint>
 
@@ -87,6 +88,7 @@ private:
     RocketCommand *m_loraCommand;
     Communicator *m_communicator;
     VoFa *m_vofa;
+    VoltageProbe *m_voltageProbe;
     LaunchPhase m_launchPhase = LaunchPhase::STANDBY;
     LaunchPhase m_lastLaunchPhase = LaunchPhase::STANDBY;
 
@@ -98,6 +100,7 @@ private:
     uint64_t m_launchTimeus = 0;
     uint64_t m_nowTimeus = 0;
     uint32_t m_lastFlightTelemetryTime_ms = 0;
+    uint32_t m_lastVoltageProbeTime_ms = 0;
     uint16_t m_pitchParachuteConfirmTimes = 0;
     uint16_t m_altitude_m = 0;
     uint16_t m_velocity_m_s = 0; // 天向速度，单位m/s
@@ -107,6 +110,7 @@ private:
     uint32_t m_imuSequence = 0;
     uint32_t m_logDroppedCount = 0;
     uint32_t m_loggerErrorCount = 0;
+    fp32 m_voltage = 0.0f;
     bool m_isInitedCompleted = false;
     bool m_isParachuteIgnited = false;
     bool m_isPrintingGNSSMessage = false;
@@ -132,7 +136,9 @@ public:
            RocketCommand *uartCommand, 
            RocketCommand *loraCommand, 
            Communicator *communicator,
-           VoFa *vofa);
+           VoFa *vofa,
+           VoltageProbe *voltageProbe
+            );
     
     virtual ~Rocket() = default;
     // 初始化相关
@@ -154,6 +160,7 @@ public:
     void loggerLoop();
     void communicationLoop();
     void GNSSLoop();
+    void voltageProbeLoop();
     bool setPhaseBetweenSTANDBYandARMED(LaunchPhase launchPhase);
     void setUARTCommand(RocketCommand* command);
     void setLoRaCommand(RocketCommand* command);
