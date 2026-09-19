@@ -9,7 +9,7 @@
 #define LORA_PRINTF_BUFFER_SIZE                             128U
 #define LOG_QUEUE_LENGTH                                    64
 #define LAUNCH_ACCEL_CRITICAL_VALUE                         10.0f
-#define PARACHUTE_PITCH_CRITICAL_POINT                      120.0f/90.0f * MATH_PI
+#define PARACHUTE_PITCH_CRITICAL_POINT_DEG                  120.0f // 相对于天顶向下的旋转角度。如120度代表地平线向下30度
 #define PARACHUTE_MAX_WAITING_TIME                          10.0f
 #define PARACHUTE_PITCH_CONFIRM_TIMES                       10
 #define PARACHUTE_IGNITE_TIME_MS                            1000

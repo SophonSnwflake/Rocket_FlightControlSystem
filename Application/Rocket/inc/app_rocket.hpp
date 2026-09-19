@@ -106,7 +106,7 @@ private:
     uint16_t m_velocity_m_s = 0; // 天向速度，单位m/s
     IMURawMessage m_imuMessage; 
     RSLMath::Vector3f m_rawAccel;
-    RSLMath::Vector3f m_eulerAngle;
+    RSLMath::Vector3f m_eulerAngle_rad; // 欧拉角，单位弧度，顺序roll-pitch-yaw
     uint32_t m_imuSequence = 0;
     uint32_t m_logDroppedCount = 0;
     uint32_t m_loggerErrorCount = 0;

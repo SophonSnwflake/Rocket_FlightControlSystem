@@ -56,6 +56,7 @@ Communicator::CommunicatorError Communicator::CommunicatorLoop(uint8_t *rxBuffer
     const LoRa::RadioEvent radioEvent = m_lora->getEvent();
     if(radioEvent == LoRa::RadioEvent::RxDone)
     {
+        printf("YES I RECEIVED! \r\n");
         const LoRa::LoraError loraResult =  m_lora->readData(rxBuffer,rxCapacity, rxLength);
 
         if(loraResult == LoRa::LoraError::PacketTooLong) {

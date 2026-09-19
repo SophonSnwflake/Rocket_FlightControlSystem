@@ -246,14 +246,14 @@ void Rocket::parachuteLoop(){
 void Rocket::imuLoop()
 {
     taskENTER_CRITICAL();
-    m_eulerAngle = m_imu->solveAttitude();
+    m_eulerAngle_rad = m_imu->solveAttitude();
     taskEXIT_CRITICAL();
     m_rawAccel = m_imu->getAccelRawData();
 
     // TODO:VoFa调试，用完删除
-    // m_vofa->setChannel(0, m_eulerAngle[0] * 180.0f/MATH_PI);
-    // m_vofa->setChannel(1, m_eulerAngle[1] * 180.0f/MATH_PI);
-    // m_vofa->setChannel(2, m_eulerAngle[2] * 180.0f/MATH_PI);
+    // m_vofa->setChannel(0, m_eulerAngle_rad[0] * 180.0f/MATH_PI);
+    // m_vofa->setChannel(1, m_eulerAngle_rad[1] * 180.0f/MATH_PI);
+    // m_vofa->setChannel(2, m_eulerAngle_rad[2] * 180.0f/MATH_PI);
     // TODO:VoFa调试，用完删除
 
     switch (m_launchPhase)
@@ -348,9 +348,9 @@ void Rocket::sendFlightTelemetryPayloadLoop(){
             payload.timeStamp_ms = temTimeStamp_ms;
             payload.flight_phase = translateLaunchFhaseIntoFlightPhase(m_launchPhase);
 
-            payload.roll_centidegree = static_cast<int16_t>((m_eulerAngle[0] * 180.0f/MATH_PI) * 100.0f);
-            payload.pitch_centidegree = static_cast<int16_t>((m_eulerAngle[1] * 180.0f/MATH_PI) * 100.0f);
-            payload.yaw_centidegree = static_cast<int16_t>((m_eulerAngle[2] * 180.0f/MATH_PI) * 100.0f);
+            payload.roll_centidegree = static_cast<int16_t>((m_eulerAngle_rad[0] * 180.0f/MATH_PI) * 100.0f);
+            payload.pitch_centidegree = static_cast<int16_t>((m_eulerAngle_rad[1] * 180.0f/MATH_PI) * 100.0f);
+            payload.yaw_centidegree = static_cast<int16_t>((m_eulerAngle_rad[2] * 180.0f/MATH_PI) * 100.0f);
 
             payload.relative_altitude_mm = static_cast<int32_t>(m_altitude_m * 1000.0f);
 
@@ -370,9 +370,9 @@ void Rocket::sendFlightTelemetryPayloadLoop(){
             payload.timeStamp_ms = temTimeStamp_ms;
             payload.flight_phase = translateLaunchFhaseIntoFlightPhase(m_launchPhase);
 
-            payload.roll_centidegree = static_cast<int16_t>((m_eulerAngle[0] * 180.0f/MATH_PI) * 100.0f);
-            payload.pitch_centidegree = static_cast<int16_t>((m_eulerAngle[1] * 180.0f/MATH_PI) * 100.0f);
-            payload.yaw_centidegree = static_cast<int16_t>((m_eulerAngle[2] * 180.0f/MATH_PI) * 100.0f);
+            payload.roll_centidegree = static_cast<int16_t>((m_eulerAngle_rad[0] * 180.0f/MATH_PI) * 100.0f);
+            payload.pitch_centidegree = static_cast<int16_t>((m_eulerAngle_rad[1] * 180.0f/MATH_PI) * 100.0f);
+            payload.yaw_centidegree = static_cast<int16_t>((m_eulerAngle_rad[2] * 180.0f/MATH_PI) * 100.0f);
 
             payload.relative_altitude_mm = static_cast<int32_t>(m_altitude_m * 1000.0f);
 
@@ -658,7 +658,7 @@ bool Rocket::isAccelLaunched(){
 }
 
 bool Rocket::isPitchOutOfCritialPoint(){
-    if (m_eulerAngle[1] >= PARACHUTE_PITCH_CRITICAL_POINT){
+    if (m_eulerAngle_rad[1] <= (MATH_PI / 2) - (PARACHUTE_PITCH_CRITICAL_POINT_DEG / 180.0f * MATH_PI)){
         return true;
     }
     return false;
