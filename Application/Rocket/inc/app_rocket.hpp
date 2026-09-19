@@ -110,9 +110,11 @@ private:
     uint32_t m_imuSequence = 0;
     uint32_t m_logDroppedCount = 0;
     uint32_t m_loggerErrorCount = 0;
+    uint32_t m_parachuteIgnitedTime_ms = 0;
     fp32 m_voltage = 0.0f;
     bool m_isInitedCompleted = false;
     bool m_isParachuteIgnited = false;
+    bool m_isParachuteIgnitedAndClosed = false; // 判断点火电平是否复位
     bool m_isPrintingGNSSMessage = false;
 
     
@@ -187,6 +189,7 @@ private:
 
     // 执行逻辑
     void igniteParachute();
+    void unIgniteParachute();
     void parachuteLoop();   
     void sendFlightTelemetryPayloadLoop();      
     

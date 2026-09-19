@@ -230,7 +230,14 @@ void Rocket::parachuteLoop(){
         case LaunchPhase::LANDED:{
             break;
         }
+    }
 
+    const uint32_t currentTime_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+    if (m_isParachuteIgnited && !m_isParachuteIgnitedAndClosed) {
+        if (static_cast<uint32_t>(currentTime_ms - m_parachuteIgnitedTime_ms) >= PARACHUTE_IGNITE_TIME_MS){
+            unIgniteParachute();
+            m_isParachuteIgnitedAndClosed = true;
+        }
     }
 }
 
@@ -701,6 +708,11 @@ Rocket::RocketError Rocket::readAllFlashDataThroughUART()
 
 void Rocket::igniteParachute(){
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);
+    m_parachuteIgnitedTime_ms = static_cast<uint32_t>(getTimestampUs() / 1000);
+}
+
+void Rocket::unIgniteParachute(){
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
 }
 
 Telemetry::FlightPhase Rocket::translateLaunchFhaseIntoFlightPhase(LaunchPhase launchphase){
