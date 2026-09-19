@@ -7,12 +7,12 @@
 
 class Communicator final{
 public:
-    static constexpr uint32_t COMMUNICATOR_QUEUE_LENGTH = 64;
     static constexpr size_t HEADER_SIZE = 8;
     static constexpr size_t FLIGHT_PAYLOAD_SIZE = 19;
     static constexpr size_t GNSS_PAYLOAD_SIZE   = 19;
     static constexpr size_t SYSTEM_PAYLOAD_SIZE = 11;
     static constexpr size_t RAW_DATA_MAX_LENGTH = 128;
+    static constexpr size_t RAW_DATA_FIFO_LENGTH = 10;
 
     enum class CommunicatorError : uint8_t{
         OK = 0,
@@ -38,32 +38,28 @@ public:
         uint8_t data[RAW_DATA_MAX_LENGTH];
     };
 
-    enum class CommunicationState : uint8_t{
-        TX,
-        RX,
-    };
-
-    struct CommunicatorEvent
-    {
-        CommunicatorEventType type;
-        union
-        {
-            Telemetry::FlightTelemetryPayload flight;
-            Telemetry::GNSSTelemetryPayload gnss;
-            Telemetry::SystemTelemetryPayload system;
-            RawDataPayload raw;
-        } data;
-    };
-
 private:
     LoRa *m_lora;
     uint16_t m_sequence = 0;
 
-    CommunicationState m_communicationState = CommunicationState::RX;
-    StaticQueue_t m_communicatorQueueControlBlock;
-    uint8_t m_communicatorQueueStorage[COMMUNICATOR_QUEUE_LENGTH * sizeof(CommunicatorEvent)];
-    QueueHandle_t m_communicatorQueue;
+    CommunicatorEventType m_txIndex = CommunicatorEventType::Flight;
+    StaticQueue_t m_flightQueueControlBlock;
+    StaticQueue_t m_GNSSQueueControlBlock;
+    StaticQueue_t m_systemQueueControlBlock;
+    StaticQueue_t m_rawDataQueueControlBlock;
+
+    uint8_t m_flightQueueStorage[1 * sizeof(Telemetry::FlightTelemetryPayload)];
+    uint8_t m_GNSSQueueStorage[1 * sizeof(Telemetry::GNSSTelemetryPayload)];
+    uint8_t m_systemQueueStorage[1 * sizeof(Telemetry::SystemTelemetryPayload)];
+    uint8_t m_rawDataQueueStorage[RAW_DATA_FIFO_LENGTH * sizeof(Communicator::RawDataPayload)];
+
+    QueueHandle_t m_flightQueue;
+    QueueHandle_t m_GNSSQueue;
+    QueueHandle_t m_systemQueue;
+    QueueHandle_t m_rawDataQueue;
+    
     uint16_t m_communicatorDroppedCount = 0;
+    bool m_rxRecoveryRequired = false;
 
     fp32 m_rxTxAirtimeError = 0;
     TickType_t m_lastTime = 0;
