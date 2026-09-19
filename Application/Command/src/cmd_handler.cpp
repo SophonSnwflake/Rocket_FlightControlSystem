@@ -7,11 +7,7 @@ namespace Application::Command
 static constexpr PhaseEntry phaseTable[] =
 {
     {"STANDBY",   Rocket::LaunchPhase::STANDBY},
-    // {"SELF_TEST", Rocket::LaunchPhase::SELF_TEST},
     {"ARMED",     Rocket::LaunchPhase::ARMED},
-    {"ASCENT",    Rocket::LaunchPhase::ASCENT}
-    // {"DESCENT",   Rocket::LaunchPhase::DESCENT},
-    // {"LANDED",    Rocket::LaunchPhase::LANDED}
 };
 
 const char* launchPhaseToString(Rocket::LaunchPhase phase)
@@ -98,7 +94,10 @@ RSL::Command::CommandHandlerResult handlePhaseGet(void* context, size_t argc, co
 RSL::Command::CommandHandlerResult handleFlashErase(void* context, std::size_t argc, const char* const* argv)
 {
     auto* ctx = static_cast<CommandContext*>(context);
-
+    if (!ctx || !ctx->rocket || ctx->rocket->getPhase() != Rocket::LaunchPhase::STANDBY) {
+        return RSL::Command::CommandHandlerResult::InvalidState;
+    }
+    
     if (!ctx || !ctx->rocket) {
         return RSL::Command::CommandHandlerResult::InvalidState;
     }
@@ -117,6 +116,10 @@ RSL::Command::CommandHandlerResult handleFlashReadAll(void* context, std::size_t
         return RSL::Command::CommandHandlerResult::InvalidState;
     }
     auto* commandContext = static_cast<Application::Command::CommandContext*>(context);
+
+    if (!commandContext->rocket || commandContext->rocket->getPhase() != Rocket::LaunchPhase::STANDBY) {
+        return RSL::Command::CommandHandlerResult::InvalidState;
+    }
 
     if (commandContext->rocket == nullptr)
     {
@@ -152,6 +155,11 @@ RSL::Command::CommandHandlerResult handleYes(void* context, std::size_t argc, co
         static_cast<CommandContext*>(context);
 
     if (!ctx || !ctx->rocket) {
+        return RSL::Command::CommandHandlerResult::InvalidState;
+    }
+    
+    if (ctx->rocket->getPhase() != Rocket::LaunchPhase::STANDBY) {
+        ctx->pendingAction = PendingAction::None;
         return RSL::Command::CommandHandlerResult::InvalidState;
     }
 

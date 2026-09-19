@@ -192,11 +192,13 @@ Rocket::RocketError Rocket::initLoRa(){
 //==============================================================================
 
 void Rocket::rocketTotalLoop(){  
+    if (m_launchPhase == LaunchPhase::STANDBY || m_launchPhase == LaunchPhase::ARMED) {
+        handlePendingUARTCommand();
+        handlePendingLoRaCommand();
+    }
     phaseSelect();
     parachuteLoop();
     sendFlightTelemetryPayloadLoop();
-    handlePendingUARTCommand();
-    handlePendingLoRaCommand();
     voltageProbeLoop();
 
     // TODO:VoFa调试，用完删除
@@ -253,7 +255,6 @@ void Rocket::imuLoop()
     // m_vofa->setChannel(1, m_eulerAngle[1] * 180.0f/MATH_PI);
     // m_vofa->setChannel(2, m_eulerAngle[2] * 180.0f/MATH_PI);
     // TODO:VoFa调试，用完删除
-
 
     switch (m_launchPhase)
     {  
@@ -379,7 +380,6 @@ void Rocket::sendFlightTelemetryPayloadLoop(){
             m_communicator->sendFlightTelemetryPayload(&payload);
             break;
     }
-    
 }
 
 
@@ -482,6 +482,17 @@ void Rocket::communicationLoop(){
             break;
 
         case LaunchPhase::ARMED:
+            if(m_communicator->CommunicatorLoop(rxBuffer, 
+                LORA_COMMAND_RX_BUFFER_SIZE, 
+                rxLength, isReceivedData, 
+                0.4) != Communicator::CommunicatorError::OK) return;
+            if(isReceivedData == false) return;
+            if (rxBuffer == nullptr) return;
+            if(rxLength == 0) return;
+            if(rxLength > LORA_COMMAND_RX_BUFFER_SIZE) return;
+            receiveLoRaCommandData(rxBuffer, rxLength);
+        
+            break;
         case LaunchPhase::ASCENT:
         case LaunchPhase::DESCENT:
         case LaunchPhase::LANDED:
@@ -558,6 +569,7 @@ void Rocket::phaseSelect(){
 
 bool Rocket::setPhaseBetweenSTANDBYandARMED(LaunchPhase launchPhase){
     // 当系统处于飞行阶段时，拒绝切换请求
+    if (launchPhase != LaunchPhase::STANDBY && launchPhase != LaunchPhase::ARMED) return false;
     if(m_launchPhase != LaunchPhase::ARMED && m_launchPhase != LaunchPhase::STANDBY) return false;
     // 重复操作退出
     if(launchPhase == m_launchPhase){
