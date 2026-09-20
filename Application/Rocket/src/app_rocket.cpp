@@ -202,7 +202,7 @@ void Rocket::rocketTotalLoop(){
     voltageProbeLoop();
 
     // TODO:VoFa调试，用完删除
-    // m_vofa->voFaLoop();
+    m_vofa->voFaLoop();
     // TODO:VoFa调试，用完删除
 
     m_nowTimeus = getTimestampUs();
@@ -250,11 +250,12 @@ void Rocket::imuLoop()
     taskEXIT_CRITICAL();
     m_rawAccel = m_imu->getAccelRawData();
 
-    // TODO:VoFa调试，用完删除
-    // m_vofa->setChannel(0, m_eulerAngle_rad[0] * 180.0f/MATH_PI);
-    // m_vofa->setChannel(1, m_eulerAngle_rad[1] * 180.0f/MATH_PI);
-    // m_vofa->setChannel(2, m_eulerAngle_rad[2] * 180.0f/MATH_PI);
-    // TODO:VoFa调试，用完删除
+    // // TODO:VoFa调试，用完删除
+    // const RSLMath::Vector3f gyroTest = m_imu->getGyroRawData();
+    // m_vofa->setChannel(0, gyroTest[0]);
+    // m_vofa->setChannel(1, gyroTest[1]);
+    // m_vofa->setChannel(2, gyroTest[2]);
+    // // TODO:VoFa调试，用完删除
 
     switch (m_launchPhase)
     {  

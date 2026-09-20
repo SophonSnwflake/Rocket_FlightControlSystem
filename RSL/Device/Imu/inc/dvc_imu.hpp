@@ -30,14 +30,14 @@ public:
     using Vector3f = RSLMath::Vector3f;
     using Matrix33f = RSLMath::Matrix33f;   
     AHRS *m_ahrs; // 指向AHRS对象的指针
-    Vector3f m_gyroRawData; // 原始陀螺仪数据
-    Vector3f m_accelRawData; // 原始加速度计数据
+    Vector3f m_gyroRawData; // 原始陀螺仪数据    // 顺序为:X-Y-Z，使用右手定则，拇指朝向箭头，四指指向方向为正
+    Vector3f m_accelRawData; // 原始加速度计数据 // 顺序为:X-Y-Z, 朝箭头正方向为正。单位m/s2。包含重力加速度
     Vector3f m_magnetRawData; // 原始磁力计数据
     Vector3f m_gyroData;      // 陀螺仪数据(校准后传入AHRS)
     Vector3f m_accelData;     // 加速度计数据(校准后传入AHRS)
     Vector3f m_magnetData;    // 磁力计数据(校准后传入AHRS)
     // 常量定义
-    static constexpr fp32 ACCEL_SEN = BMI088_ACCEL_3G_SEN;
+    static constexpr fp32 ACCEL_SEN = BMI088_ACCEL_12G_SEN;
     static constexpr fp32 GYRO_SEN  = BMI088_GYRO_2000_SEN;
 
     bool m_Inited = false;
