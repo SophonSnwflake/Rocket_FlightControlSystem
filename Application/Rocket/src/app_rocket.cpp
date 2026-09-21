@@ -192,20 +192,31 @@ Rocket::RocketError Rocket::initLoRa(){
 //==============================================================================
 
 void Rocket::rocketTotalLoop(){  
-    if (m_launchPhase == LaunchPhase::STANDBY || m_launchPhase == LaunchPhase::ARMED) {
-        handlePendingUARTCommand();
-        handlePendingLoRaCommand();
+    if (isInitCompleted()){
+        if (m_launchPhase == LaunchPhase::STANDBY || m_launchPhase == LaunchPhase::ARMED) {
+            handlePendingUARTCommand();
+            handlePendingLoRaCommand();
+        }
+        phaseSelect();
+        parachuteLoop();
+        sendFlightTelemetryPayloadLoop();
+        sendSystemTelemetryPayloadLoop();
+        m_nowTimeus = getTimestampUs();
+        // TODO:VoFa调试，用完删除
+        // m_vofa->voFaLoop();
+        // TODO:VoFa调试，用完删除
+    } else{
+        static bool buzzerOn = false;
+        m_nowTimeus = getTimestampUs();
+        if((m_nowTimeus - m_lastBuzzerChangeTimeus) / 1000ULL < BUZZER_ALARM_PERIOD_MS){
+            return;
+        }else{
+            m_lastBuzzerChangeTimeus = m_nowTimeus;
+            buzzerOn = !buzzerOn;
+            m_buzzer->handleChipping(buzzerOn);
+        }
+        
     }
-    phaseSelect();
-    parachuteLoop();
-    sendFlightTelemetryPayloadLoop();
-    voltageProbeLoop();
-
-    // TODO:VoFa调试，用完删除
-    // m_vofa->voFaLoop();
-    // TODO:VoFa调试，用完删除
-
-    m_nowTimeus = getTimestampUs();
 }
 
 void Rocket::parachuteLoop(){
@@ -506,6 +517,17 @@ void Rocket::communicationLoop(){
     }
 }
 
+void Rocket::sendSystemTelemetryPayloadLoop(){
+    if(!m_lora->isLoRaBegined()) return;
+    Telemetry::SystemTelemetryPayload payload{};
+    payload.system_status = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+    payload.battery_mv = m_voltageProbe->readVoltage() * 1000ULL;
+    payload.log_dropped_count = m_logDroppedCount;
+
+    m_communicator->sendSystemTelemetryPayload(&payload);
+}
+
+// TODO:调试专用，用完删除
 void Rocket::voltageProbeLoop(){
     if(m_voltageProbe == nullptr) return;
     uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
@@ -514,6 +536,7 @@ void Rocket::voltageProbeLoop(){
     m_voltage = m_voltageProbe->readVoltage();
     printf("Voltage: %.2f V\r\n", m_voltage);
 }
+// TODO:调试专用，用完删除
 
 Rocket::RocketError Rocket::eraseAllChipForNewFlight(){
     RocketLog::RocketLogger::FlashLogError state;

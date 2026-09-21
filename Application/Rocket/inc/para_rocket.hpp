@@ -13,6 +13,7 @@
 #define PARACHUTE_MAX_WAITING_TIME                          10.0f
 #define PARACHUTE_PITCH_CONFIRM_TIMES                       10
 #define PARACHUTE_IGNITE_TIME_MS                            1000
+#define BUZZER_ALARM_PERIOD_MS                              1000U
 
 #define LOGGER_QUATERNION_SCALE_FACTOR                      10000.0f
 #define LOGGER_GYRO_BIAS_SCALE_FACTOR                       100000.0f

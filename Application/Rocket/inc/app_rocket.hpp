@@ -99,6 +99,7 @@ private:
 private:
     uint64_t m_launchTimeus = 0;
     uint64_t m_nowTimeus = 0;
+    uint64_t m_lastBuzzerChangeTimeus = 0;
     uint32_t m_lastFlightTelemetryTime_ms = 0;
     uint32_t m_lastVoltageProbeTime_ms = 0;
     uint16_t m_pitchParachuteConfirmTimes = 0;
@@ -163,6 +164,7 @@ public:
     void communicationLoop();
     void GNSSLoop();
     void voltageProbeLoop();
+    void sendSystemTelemetryPayloadLoop();
     bool setPhaseBetweenSTANDBYandARMED(LaunchPhase launchPhase);
     void setUARTCommand(RocketCommand* command);
     void setLoRaCommand(RocketCommand* command);

@@ -1,8 +1,5 @@
 #include "dvc_voltageProbe.hpp"
 
-// TODO: 引入串口调试，用完删除！
-#include "drv_uart.h"
-// TODO: 引入串口调试，用完删除！
 
 VoltageProbe::VoltageProbe(ADC_HandleTypeDef *hadc) : 
         m_hadc(hadc) {}
@@ -27,7 +24,6 @@ float VoltageProbe::readVoltage()
 
     uint32_t raw = HAL_ADC_GetValue(m_hadc);
 
-    printf("Raw ADC Value: %lu\r\n", raw); // TODO: 引入串口调试，用完删除！
 
     float adcVoltage = static_cast<float>(raw) / ADC_MAX_VALUE * STATIC_VOLTAGE_REF * DIVIDER_RATIO;
 
