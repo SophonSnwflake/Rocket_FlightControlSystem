@@ -106,6 +106,8 @@ RSL::Command::CommandHandlerResult handleFlashErase(void* context, std::size_t a
 
     if (ctx->source == Application::Command::CommandSource::UART){
         printf("WARNING: This will erase the entire flash.\r\n""Are you sure? Type 'yes' or 'no'.\r\n");
+    } else if(ctx->source == Application::Command::CommandSource::LoRa){
+        ctx->rocket->loraPrintf("WARNING: This will erase the entire flash.\r\n""Are you sure? Type 'yes' or 'no'.\r\n");
     }
 
     return RSL::Command::CommandHandlerResult::OK;
@@ -171,21 +173,30 @@ RSL::Command::CommandHandlerResult handleYes(void* context, std::size_t argc, co
     switch (action) {
 
     case PendingAction::FlashErase:
-        printf("Erasing flash...\r\n");
+        if (ctx->source == Application::Command::CommandSource::UART){
+            printf("Erasing flash...\r\n");
+        } else if(ctx->source == Application::Command::CommandSource::LoRa){
+            ctx->rocket->loraPrintf("Erasing flash...\r\n");
+        }
         Rocket::RocketError state;
         state = ctx->rocket->eraseAllChipForNewFlight();
         state = ctx->rocket->initLogger();
         if(state != Rocket::RocketError::OK){
             if (ctx->source == Application::Command::CommandSource::UART){
                 printf("Flash erase failed!\r\n");
+            } else if(ctx->source == Application::Command::CommandSource::LoRa){
+                ctx->rocket->loraPrintf("Flash erase failed!\r\n");
             }
             return RSL::Command::CommandHandlerResult::Unsupported;
         }
 
         if (ctx->source == Application::Command::CommandSource::UART){
-            printf("Flash erase success!\r\n");
+            if (ctx->source == Application::Command::CommandSource::UART){
+                printf("Flash erase success!\r\n");
+            } else if(ctx->source == Application::Command::CommandSource::LoRa){
+                ctx->rocket->loraPrintf("Flash erase success!\r\n");
+            }
         }
-        
         return RSL::Command::CommandHandlerResult::OK;
 
     case PendingAction::SystemReboot:
@@ -197,7 +208,11 @@ RSL::Command::CommandHandlerResult handleYes(void* context, std::size_t argc, co
 
     case PendingAction::None:
     default:
-        printf("No operation is waiting for confirmation.\r\n");
+        if (ctx->source == Application::Command::CommandSource::UART){
+            printf("No operation is waiting for confirmation.\r\n");
+        } else if(ctx->source == Application::Command::CommandSource::LoRa){
+            ctx->rocket->loraPrintf("No operation is waiting for confirmation.\r\n");
+        }
         return RSL::Command::CommandHandlerResult::InvalidState;
     }
 }

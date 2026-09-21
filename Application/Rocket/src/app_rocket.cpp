@@ -202,7 +202,7 @@ void Rocket::rocketTotalLoop(){
     voltageProbeLoop();
 
     // TODO:VoFa调试，用完删除
-    m_vofa->voFaLoop();
+    // m_vofa->voFaLoop();
     // TODO:VoFa调试，用完删除
 
     m_nowTimeus = getTimestampUs();
@@ -426,7 +426,7 @@ void Rocket::loggerLoop()
 void Rocket::GNSSLoop(){
     if(!m_gnss->isHasNewData()) return;
     m_gnss->handleGNSSMessageLoop();
-    if(m_launchPhase == LaunchPhase::STANDBY || m_launchPhase == LaunchPhase::ARMED) return;
+    // if(m_launchPhase == LaunchPhase::STANDBY || m_launchPhase == LaunchPhase::ARMED) return;
     LogEvent event{};
 
     event.type = LogEventType::GNSS;

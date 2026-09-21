@@ -628,7 +628,7 @@ W25Q128::Result W25Q128::readJedecId(uint32_t& id){
  *        两次 waitReady 都在锁外，中间那段才持锁。
  * @note  那对独立的花括号是**功能性的**，不是格式：它让 BusGuard 在结尾的
  *        waitReady 之前析构。少了它，waitReady 会在持锁状态下被调用而重入死锁。
- * @note  页编程期间（典型 0.7ms、最坏 3ms）芯片自己忙，总线是空闲的，
+ * @note  页编程期间（典型 0.4ms、最坏 3ms）芯片自己忙，总线是空闲的，
  *        提前放锁让同总线的其他器件能用。
  */
 W25Q128::Result W25Q128::programPage(uint32_t address, const uint8_t* data, uint32_t length){

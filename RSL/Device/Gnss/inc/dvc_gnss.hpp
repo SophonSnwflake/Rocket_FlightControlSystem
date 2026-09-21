@@ -46,7 +46,6 @@ protected:
     uint32_t m_h_accuracy; //水平精度 (mm)
     uint32_t m_v_accuracy; //垂直精度 (mm)
     uint32_t m_speed_accuracy; //速度精度 (mm/s)
-    uint8_t m_fix_type; //定位类型
     uint8_t m_num_satellites; //卫星数量
 
     //时间
@@ -82,7 +81,7 @@ public:
     uint32_t getHAccuracy(){return m_h_accuracy;}
     uint32_t getVAccuracy(){return m_v_accuracy;}
     uint32_t getSpeedAccuracy(){return m_speed_accuracy;}
-    uint8_t getFixType(){return m_fix_type;}
+    uint8_t getFixType(){return static_cast<uint8_t>(m_fixType);}
     uint8_t getNumSatellites(){return m_num_satellites;}
 
     uint32_t getITOW(){return m_iTOW;}
