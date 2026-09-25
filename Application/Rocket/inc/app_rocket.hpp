@@ -105,6 +105,7 @@ private:
     uint32_t m_lastGNSSTelemetryTime_ms = 0;
     uint32_t m_lastVoltageProbeTime_ms = 0;
     uint16_t m_pitchParachuteConfirmTimes = 0;
+    uint16_t m_isAccelLaunchedConfirmTimes = 0;
     uint16_t m_altitude_m = 0;
     uint16_t m_velocity_m_s = 0; // 天向速度，单位m/s
     IMURawMessage m_imuMessage; 

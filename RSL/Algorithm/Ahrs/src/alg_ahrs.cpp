@@ -1,6 +1,7 @@
 #include "cmsis_os.h"
 #include "drv_time.h"
 #include "alg_ahrs.hpp"
+#include <algorithm>
 
 /******************************************************************************
  *                            AHRS类实现
@@ -40,7 +41,7 @@ const AHRS::Vector3f &AHRS::update(const Vector3f &gyro, const Vector3f &accel, 
     m_accel  = accel;
     m_magnet = magnet;
     if (!m_isAhrsInited) {
-        initQuaternion(); // 根据传感器数据初始化四元数
+        if (!initQuaternion()) return m_eulerAngle; // 等待有效加速度后再初始化
         init();           // 子类特定初始化(纯虚函数)
         m_isAhrsInited = true;
     }
@@ -157,10 +158,15 @@ void AHRS::convertQuaternionToEulerAngle()
  *       无磁力计时仅用加速度对齐重力方向(yaw设为0)
  * @note 在首次update()中、子类init()之前调用, 此时m_accel和m_magnet已就绪
  */
-void AHRS::initQuaternion()
+bool AHRS::initQuaternion()
 {
+    const fp32 accelNormSq = m_accel.x * m_accel.x + m_accel.y * m_accel.y + m_accel.z * m_accel.z;
+    constexpr fp32 MIN_ACCEL_NORM = 0.01f;
+    constexpr fp32 MIN_ACCEL_NORM_SQ = MIN_ACCEL_NORM * MIN_ACCEL_NORM;
+    if (!std::isfinite(accelNormSq) || accelNormSq <= MIN_ACCEL_NORM_SQ) return false;
+
     // 归一化加速度计数据, 得到重力方向单位向量
-    fp32 recipNorm = RSLMath::invSqrt(m_accel.x * m_accel.x + m_accel.y * m_accel.y + m_accel.z * m_accel.z);
+    fp32 recipNorm = RSLMath::invSqrt(accelNormSq);
     fp32 ax        = m_accel.x * recipNorm;
     fp32 ay        = m_accel.y * recipNorm;
     fp32 az        = m_accel.z * recipNorm;
@@ -247,6 +253,7 @@ void AHRS::initQuaternion()
     m_quaternion[1] *= recipNorm;
     m_quaternion[2] *= recipNorm;
     m_quaternion[3] *= recipNorm;
+    return true;
 }
 
 
@@ -440,21 +447,34 @@ void QuaternionEKF::ekfProcess(fp32 gx, fp32 gy, fp32 gz, fp32 ax, fp32 ay, fp32
         m_accelFiltered.z = m_accelFiltered.z * m_accLpfCoef / lpfDenom + az * dt / lpfDenom;
     }
 
-    // 归一化加速度作为量测
-    fp32 accelInvNorm = RSLMath::invSqrt(
-        m_accelFiltered.x * m_accelFiltered.x +
-        m_accelFiltered.y * m_accelFiltered.y +
-        m_accelFiltered.z * m_accelFiltered.z);
+    fp32 accelNormSq  = m_accelFiltered.x * m_accelFiltered.x +
+                            m_accelFiltered.y * m_accelFiltered.y +
+                            m_accelFiltered.z * m_accelFiltered.z;
+                            
+    constexpr fp32 MIN_ACCEL_NORM = 0.01f;
+    constexpr fp32 MIN_ACCEL_NORM_SQ = MIN_ACCEL_NORM * MIN_ACCEL_NORM;
 
-    M::MeasVector measurement;
-    measurement << m_accelFiltered.x * accelInvNorm,
-        m_accelFiltered.y * accelInvNorm,
-        m_accelFiltered.z * accelInvNorm;
+    const bool accelValid = std::isfinite(accelNormSq) && accelNormSq > MIN_ACCEL_NORM_SQ;
+
+    M::MeasVector measurement = M::MeasVector::Zero();
+
+    if (accelValid){
+        // 归一化加速度作为量测
+        const fp32 accelInvNorm = RSLMath::invSqrt(accelNormSq);
+
+        measurement << m_accelFiltered.x * accelInvNorm,
+                        m_accelFiltered.y * accelInvNorm,
+                        m_accelFiltered.z * accelInvNorm;
+
+        m_accelNorm = 1.0f / accelInvNorm;
+
+    } else{
+        m_accelNorm = 0.0f;
+    }
 
     // 计算载体运动状态(用于发散保护)
     m_gyroNorm  = 1.0f / RSLMath::invSqrt(wx * wx + wy * wy + wz * wz);
-    m_accelNorm = 1.0f / accelInvNorm;
-
+    
     if (m_gyroNorm < 0.3f && m_accelNorm > 9.3f && m_accelNorm < 10.3f) {
         m_stableFlag = true;
     } else {
@@ -529,7 +549,8 @@ void QuaternionEKF::ekfProcess(fp32 gx, fp32 gy, fp32 gz, fp32 ax, fp32 ay, fp32
         q0 * q0 - q1 * q1 - q2 * q2 + q3 * q3;
 
     for (int i = 0; i < 3; i++) {
-        m_orientationCosine[i] = acosf(fabsf(hx(i)));
+        const fp32 cosine = std::clamp(fabsf(hx(i)), 0.0f, 1.0f);
+        m_orientationCosine[i] = acosf(cosine);
     }
 
     M::MeasVector innovation = measurement - hx;
@@ -566,7 +587,7 @@ void QuaternionEKF::ekfProcess(fp32 gx, fp32 gy, fp32 gz, fp32 ax, fp32 ay, fp32
         m_adaptiveGainScale = 1.0f;
     }
 
-    if (skipCorrection) {
+    if (skipCorrection || !accelValid) {
         m_kalmanFilter.setState(xpred);
         m_kalmanFilter.setCovariance(Ppred);
     } else {

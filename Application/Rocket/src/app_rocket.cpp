@@ -278,9 +278,9 @@ void Rocket::parachuteLoop(){
 
 void Rocket::imuLoop()
 {
-    taskENTER_CRITICAL();
+    // taskENTER_CRITICAL();
     m_eulerAngle_rad = m_imu->solveAttitude();
-    taskEXIT_CRITICAL();
+    // taskEXIT_CRITICAL();
     m_rawAccel = m_imu->getAccelRawData();
 
     // // TODO:VoFa调试，用完删除
@@ -577,7 +577,7 @@ void Rocket::sendSystemTelemetryPayloadLoop(){
     if(temTimeStamp_ms - m_lastSystemTelemetryTime_ms < SYSTEM_TELEMETRY_PERIOD_MS){
         return;
     }
-    m_lastGNSSTelemetryTime_ms = temTimeStamp_ms;
+    m_lastSystemTelemetryTime_ms = temTimeStamp_ms;
     Telemetry::SystemTelemetryPayload payload{};
     payload.timestamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
     payload.battery_mv = m_voltageProbe->readVoltage() * 1000ULL;
@@ -613,9 +613,15 @@ void Rocket::phaseSelect(){
             break;
         }
         case LaunchPhase::ARMED :{
-            if(isAccelLaunched()){
-                m_launchTimeus = getTimestampUs();
-                m_launchPhase = LaunchPhase::ASCENT;
+            if (isAccelLaunched()){
+                m_isAccelLaunchedConfirmTimes ++;
+                if(m_isAccelLaunchedConfirmTimes >= LAUNCH_CONFIRM_TIMES){
+                    m_launchTimeus = getTimestampUs();
+                    m_launchPhase = LaunchPhase::ASCENT;
+                }
+                break;
+            }else{
+                m_isAccelLaunchedConfirmTimes = 0;
                 break;
             }
             break;

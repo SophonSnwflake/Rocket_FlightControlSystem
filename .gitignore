@@ -26,3 +26,7 @@ Thumbs.db
 
 CLAUDE.md
 AGENTS.md
+
+# Codex-generated working files and artifacts
+.codex_tmp/
+outputs/

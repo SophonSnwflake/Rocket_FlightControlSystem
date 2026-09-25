@@ -12,6 +12,7 @@
 #define PARACHUTE_PITCH_CRITICAL_POINT_DEG                  120.0f // 相对于天顶向下的旋转角度。如120度代表地平线向下30度
 #define PARACHUTE_MAX_WAITING_TIME                          10.0f
 #define PARACHUTE_PITCH_CONFIRM_TIMES                       10
+#define LAUNCH_CONFIRM_TIMES                                10
 #define PARACHUTE_IGNITE_TIME_MS                            1000
 #define BUZZER_ALARM_PERIOD_MS                              1000U
 #define BARO_SAMPLE_TIMES                                   50  // 标准气压温度采样次数

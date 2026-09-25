@@ -13,7 +13,7 @@ extern "C" void GNSS_task(void *argument){
     TickType_t last_wake_time = xTaskGetTickCount();
     while (true)
     {
-        while(rocket.isInitCompleted()){
+        if(rocket.isInitCompleted()){
             rocket.GNSSLoop();
         }
         vTaskDelayUntil(&last_wake_time, 200);

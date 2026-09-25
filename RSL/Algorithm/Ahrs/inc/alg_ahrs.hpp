@@ -17,6 +17,7 @@
 #include "cmsis_os.h"
 #include "stm32f411xe.h"
 #include "alg_kalmanFilter.hpp"
+#include <cmath>
 
 class AHRS
 {
@@ -51,7 +52,7 @@ protected:
     AHRS();
     virtual void dataProcess() = 0;
     void convertQuaternionToEulerAngle();
-    void initQuaternion();
+    bool initQuaternion();
     void calculateMotionAccel();
 };
 
