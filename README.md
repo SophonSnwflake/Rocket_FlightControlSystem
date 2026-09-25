@@ -57,6 +57,42 @@ Rocket_FlightControl/
 ├── CMakePresets.json           # Cmake编译配置
 ```
 
+## 编译命令
+
+### Preset
+
+#### Debug模式，调试时用这个
+```
+cmake --preset Debug
+```
+
+#### Release模式
+
+```
+cmake --preset Release
+```
+
+### 编译
+
+#### Debug模式
+
+```
+cmake --build build/Debug
+```
+
+#### Release模式
+
+```
+cmake --build build/Release
+```
+
+### 烧录
+
+#### ST-Link
+
+```
+openocd -f interface/stlink.cfg -f target/stmf4x.cfg -c "program build/Debug/rocket_26.elf verift reset exit"
+```
 
 ## 当前进度
 

@@ -1,6 +1,12 @@
 #include "dvc_barometer.hpp"
 #include "drv_spi.h"
+#include <cmath>
 
+#include <Eigen/Core>
+
+// TODO:临时操作
+#include "drv_uart.h"
+// TODO:临时操作
 
 BMP388::BMP388(BMP388_HandleTypeDef handleTypeDef, BMP388Config config) :
     m_initialized(false),
@@ -11,35 +17,99 @@ BMP388::BMP388(BMP388_HandleTypeDef handleTypeDef, BMP388Config config) :
     m_handleTypeDef = handleTypeDef;   
 }
 
+fp32 Barometer::calculateAltitude(fp64 pressure, fp32 refTem, fp64 refPre){
+    // 国际标准大气温度梯度
+    constexpr fp32 LAPSE_RATE = 0.0065f;       // K/m
+    // 重力加速度
+    constexpr fp32 GRAVITY = 9.80665f;
+    // 空气摩尔质量
+    constexpr fp32 MOLAR_MASS = 0.0289644f;
+    // 气体常数
+    constexpr fp32 GAS_CONSTANT = 8.3144598f;
+
+    if (refPre <= 0 || pressure <= 0){
+        return -1.0f;
+    }
+    // 摄氏度转换为开尔文
+    fp32 temperatureK = refTem + 273.15f;
+
+    /*
+        气压高度公式:
+
+        h = T0/L * (1 - (P/P0)^(R*L/(g*M)))
+
+    */
+
+    fp32 exponent = 
+        (GAS_CONSTANT * LAPSE_RATE) /
+        (GRAVITY * MOLAR_MASS);
+
+    fp32 altitude =
+        (temperatureK / LAPSE_RATE) *
+        (1.0f - pow(
+            pressure / refPre,
+            exponent
+        ));
+
+    return altitude;
+}
+
 Barometer::BarometerError BMP388::init(){
     m_initialized = false;
     uint8_t chipId = 0;
 
 
-    for (uint32_t i = 0; i < 1000U; i++)
-    {
-    uint8_t chipId = 0U;
+        const auto result =
+            readRegister(REG_CHIP_ID, &chipId);
 
-    const auto result =
-        readRegister(REG_CHIP_ID, &chipId);
+        // printf(
+        //     "result=%u, chipId=0x%02X\r\n",
+        //     static_cast<unsigned int>(result),
+        //     static_cast<unsigned int>(chipId));
 
-    printf(
-        "result=%u, chipId=0x%02X\r\n",
-        static_cast<unsigned int>(result),
-        static_cast<unsigned int>(chipId));
-
-    HAL_Delay(10U);
-    }
+        HAL_Delay(10U);
     // BARO_TRY(readRegister(REG_CHIP_ID, &chipId));
 
     if (chipId != CHIP_ID_BMP388) {
-        return BarometerError::DEVICE_NOT_FOUND;
+        printf("CHIP ID FILED\r\n");
+        return BarometerError::CHIP_ID_FAILED;
     }
 
-    BARO_TRY(softReset());
-    BARO_TRY(readCalibration());
-    BARO_TRY(configure(m_config));
-    BARO_TRY(setMode(PowerMode::Normal));
+    {
+        const BarometerError result = softReset();
+        if (result != BarometerError::OK) {
+            printf("Barometer softReset failed, error=%u\r\n",
+                   static_cast<unsigned int>(result));
+            return result;
+        }
+    }
+
+    {
+        const BarometerError result = readCalibration();
+        if (result != BarometerError::OK) {
+            printf("Barometer readCalibration failed, error=%u\r\n",
+                   static_cast<unsigned int>(result));
+            return result;
+        }
+    }
+
+    {
+        const BarometerError result = configure(m_config);
+        if (result != BarometerError::OK) {
+            printf("Barometer configure failed, error=%u\r\n",
+                   static_cast<unsigned int>(result));
+            return result;
+        }
+    }
+
+    {
+        const BarometerError result = setMode(PowerMode::Normal);
+        if (result != BarometerError::OK) {
+            printf("Barometer setMode failed, error=%u\r\n",
+                   static_cast<unsigned int>(result));
+            return result;
+        }
+    }
 
     m_initialized = true;
     return BarometerError::OK;
@@ -115,7 +185,6 @@ Barometer::BarometerError BMP388::readCalibration(){
     parseCalibrationData(calib_data);
     m_calibrationValid = true;
     return BarometerError::OK;
-    
 }
 
 void BMP388::parseCalibrationData(const uint8_t* regData)
@@ -221,6 +290,147 @@ void BMP388::parseCalibrationData(const uint8_t* regData)
         36893488147419103232.0;
 
     m_calibData.tLin = 0.0;
+}
+
+Barometer::BarometerError BMP388::read(fp64 *temperature, fp64 *pressure){
+    if(!m_initialized){
+        return BarometerError::NOT_INITIALIZED;
+    }
+    if(!m_calibrationValid){
+        return BarometerError::NOT_CALIBRATED;
+    }
+    if (temperature == nullptr || pressure == nullptr){
+        return BarometerError::NULL_PTR;
+    }
+
+    BarometerError result;
+    uint8_t reg_data[LEN_P_T_DATA]{};
+    uint64_t uncompo_pressure;
+    int64_t uncompo_temperature;
+
+    result = readRegisters(REG_DATA, reg_data, LEN_P_T_DATA);
+    if (result != BarometerError::OK){
+        return result;
+    }
+
+    /* Parse the read data from the sensor */
+    result = parseRawData(reg_data, &uncompo_pressure, &uncompo_temperature);
+    if (result != BarometerError::OK){
+        return result;
+    }
+
+    /* Compensate the pressure/temperature/both data read
+     * from the sensor */
+    result = compensateTemperature(temperature, &uncompo_temperature);
+    if (result != BarometerError::OK){
+        return result;
+    }
+
+    result = compensatePressure(pressure, &uncompo_pressure);
+    if(result == BarometerError::OK){
+        m_initialized = true;
+    }
+    return result;
+}
+
+Barometer::BarometerError BMP388::parseRawData(const uint8_t *reg_data, uint64_t *pressure, int64_t *temperature){
+    if (reg_data == nullptr || pressure == nullptr || temperature == nullptr){
+        return BarometerError::BAD_PARAM;
+    }
+    uint32_t data_xlsb;
+    uint32_t data_lsb;
+    uint32_t data_msb;
+
+    data_xlsb = (uint32_t)reg_data[0];
+    data_lsb = (uint32_t)reg_data[1] << 8;
+    data_msb = (uint32_t)reg_data[2] << 16;
+    *pressure = data_msb | data_lsb | data_xlsb;
+
+    data_xlsb = (uint32_t)reg_data[3];
+    data_lsb = (uint32_t)reg_data[4] << 8;
+    data_msb = (uint32_t)reg_data[5] << 16;
+    *temperature = data_msb | data_lsb | data_xlsb;
+
+    return BarometerError::OK;
+}
+
+Barometer::BarometerError BMP388::compensateTemperature(fp64 *temperature, const int64_t *rawTemperature){
+    BarometerError result = BarometerError::OK;
+    int64_t uncomp_temp = *rawTemperature;
+    double partial_data1;
+    double partial_data2;
+
+    partial_data1 = (double)(uncomp_temp - m_calibData.parT1);
+    partial_data2 = (double)(partial_data1 * m_calibData.parT2);
+
+    /* Update the compensated temperature in calib structure since this is
+     * needed for pressure calculation */
+    m_calibData.tLin = partial_data2 + (partial_data1 * partial_data1) *
+                                             m_calibData.parT3;
+
+    /* Returns compensated temperature */
+    if (m_calibData.tLin < MIN_TEMP_DOUBLE)
+    {
+        m_calibData.tLin = MIN_TEMP_DOUBLE;
+        result = BarometerError::MIN_TEM;
+    }
+
+    if (m_calibData.tLin > MAX_TEMP_DOUBLE)
+    {
+        m_calibData.tLin = MAX_TEMP_DOUBLE;
+        result = BarometerError::MAX_TEM;
+    }
+
+    (*temperature) = m_calibData.tLin;
+
+    return result;
+}
+
+Barometer::BarometerError BMP388::compensatePressure(fp64 *pressure, const uint64_t *rawPressure){
+    BarometerError result = BarometerError::OK;
+
+    /* Variable to store the compensated pressure */
+    fp64 comp_press;
+
+    /* Temporary variables used for compensation */
+    fp64 partial_data1;
+    fp64 partial_data2;
+    fp64 partial_data3;
+    fp64 partial_data4;
+    fp64 partial_out1;
+    fp64 partial_out2;
+
+    partial_data1 = m_calibData.parP6 * m_calibData.tLin;
+    partial_data2 = m_calibData.parP7 * Eigen::numext::pow(m_calibData.tLin, 2.0);
+    partial_data3 = m_calibData.parP8 * Eigen::numext::pow(m_calibData.tLin, 3.0);
+    partial_out1 = m_calibData.parP5 + partial_data1 + partial_data2 + partial_data3;
+    partial_data1 = m_calibData.parP2 * m_calibData.tLin;
+    partial_data2 = m_calibData.parP3 * Eigen::numext::pow(m_calibData.tLin, 2.0);
+    partial_data3 = m_calibData.parP4 * Eigen::numext::pow(m_calibData.tLin, 3.0);
+    partial_out2 = (*rawPressure) *
+                   (m_calibData.parP1 + partial_data1 + partial_data2 + partial_data3);
+    partial_data1 = Eigen::numext::pow(static_cast<fp64>(*rawPressure), 2.0);
+    partial_data2 = m_calibData.parP9 + m_calibData.parP10 * m_calibData.tLin;
+    partial_data3 = partial_data1 * partial_data2;
+    partial_data4 = partial_data3 +
+                    Eigen::numext::pow(static_cast<fp64>(*rawPressure), 3.0) * m_calibData.parP11;
+    comp_press = partial_out1 + partial_out2 + partial_data4;
+
+    if (comp_press < MIN_PRES_DOUBLE)
+    {
+        comp_press = MIN_PRES_DOUBLE;
+        result = BarometerError::MIN_PRE;
+    }
+
+    if (comp_press > MAX_PRES_DOUBLE)
+    {
+        comp_press = MAX_PRES_DOUBLE;
+        result = BarometerError::MAX_PRE;
+    }
+
+    (*pressure) = comp_press;
+
+    return result;
 }
 
 /**
@@ -359,7 +569,12 @@ Barometer::BarometerError BMP388::setMode(BMP388::PowerMode mode){
         BARO_TRY(writeRegister(REG_PWR_CTRL, regValue));
 
         // 等待芯片稳定进入 Sleep 模式。
-        (void)osDelay(MODE_TRANSITION_DELAY_MS);
+        if (osKernelGetState() == osKernelRunning){
+                osDelay(MODE_TRANSITION_DELAY_MS);
+        }
+        else{
+            HAL_Delay(MODE_TRANSITION_DELAY_MS);
+        }
     }
      /*
      * 如果目标模式本身就是 Sleep，到这里已经完成。
@@ -649,6 +864,10 @@ Barometer::BarometerError BMP388::spiSendReceiveBuffer(uint8_t* txBuf, size_t le
         (len == 0U) ||
         (len > UINT16_MAX)) {
         return BarometerError::BAD_PARAM;
+    }
+    if (m_handleTypeDef.spiHandle == nullptr ||
+        m_handleTypeDef.cs_port == nullptr){
+        return BarometerError::BAD_PARAM; 
     }
     SPIGuard guard(m_handleTypeDef, (uint32_t)200);
     if (!guard.ok()){

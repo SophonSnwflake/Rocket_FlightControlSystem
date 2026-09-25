@@ -61,9 +61,9 @@ BMP388::BMP388_HandleTypeDef barometerHandle{
 };
 
 BMP388::BMP388Config barometerConfig{
-    BMP388::Oversampling::X4,
-    BMP388::Oversampling::X4,
-    BMP388::OutputDataRate::Hz0_195,
+    BMP388::Oversampling::X1,
+    BMP388::Oversampling::X1,
+    BMP388::OutputDataRate::Hz200,
     BMP388::IIRFilter::C4
 };
 
@@ -72,7 +72,7 @@ Communicator communicator(&lora);
 
 BMP388 barometer(barometerHandle, barometerConfig);
 
-VoFa vofa(3, &huart1);
+VoFa vofa(2, &huart1);
 
 VoltageProbe voltageProbe(&hadc1);
 
@@ -95,6 +95,6 @@ extern "C" void rocket_task(void *argument)
     while (true)
     {
         rocket.rocketTotalLoop();
-        vTaskDelayUntil(&last_wake_time, 10);
+        vTaskDelayUntil(&last_wake_time, 5);
     }
 }

@@ -27,10 +27,17 @@ public:
         COMM_FAIL,
         BAD_PARAM,
         NOT_INITIALIZED,
+        NOT_CALIBRATED,
         DEVICE_NOT_FOUND,
+        CHIP_ID_FAILED,
         BUS_TIMEOUT,
         DEVICE_NOT_READY,
         DEVICE_ERROR,
+        MIN_TEM,
+        MAX_TEM,
+        MIN_PRE,
+        MAX_PRE,
+        NULL_PTR
     } BarometerError;
 
 
@@ -38,8 +45,7 @@ public:
     Barometer() = default;
     virtual ~Barometer() = default;
     virtual BarometerError init() = 0;
-
-
+    fp32 calculateAltitude(fp64 pressure, fp32 refTem, fp64 refPre);
 };
 
 class BMP388 final : public Barometer
@@ -181,13 +187,13 @@ public:
 
     // 对外主要接口
     BarometerError init() override;
-    BarometerError read();
+    BarometerError read(fp64 *temperature, fp64 *pressure);
 
     // 运行状态控制
     BarometerError setMode(PowerMode mode);
 
     // 安全地重新配置传感器
-    BarometerError reconfigure(const BMP388Config& config);
+    // BarometerError reconfigure(const BMP388Config& config);
 
 private:
     // ==================== 初始化与配置 ====================
@@ -201,8 +207,8 @@ private:
     BarometerError setOversampling(Oversampling pressureOversampling, Oversampling temperatureOversampling);
     BarometerError setOutputDataRate(OutputDataRate outputDataRate);
     BarometerError setIIRFilter(IIRFilter iirFilter);
-    BarometerError enableSensors(bool enablePressure, bool enableTemperature);
 
+    BarometerError enableSensors(bool enablePressure, bool enableTemperature);
     // ==================== 校准参数处理 ====================
 
     BarometerError readCalibration();
@@ -210,9 +216,9 @@ private:
 
     // ==================== 原始数据与补偿 ====================
 
-    BarometerError parseRawData();
-    BarometerError compensateTemperature();
-    BarometerError compensatePressure();
+    BarometerError parseRawData(const uint8_t *reg_data, uint64_t *pressure, int64_t *temperature);
+    BarometerError compensateTemperature(fp64 *temperature, const int64_t *rawTemperature);
+    BarometerError compensatePressure(fp64 *pressure, const uint64_t *rawPressure);
 
     // ==================== 寄存器访问 ====================
 

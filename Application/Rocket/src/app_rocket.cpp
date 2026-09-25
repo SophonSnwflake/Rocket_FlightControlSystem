@@ -2,6 +2,7 @@
 #include "agr_telemetry_protocal.hpp"
 #include "dvc_vofa.hpp"
 #include "mid_logger.hpp"
+#include "para_rocket.hpp"
 #include "stm32f4xx_hal_gpio.h"
 #include "math_const.h"
 
@@ -99,10 +100,11 @@ Rocket::RocketError Rocket::Init(){
     osDelay(80U);
     m_buzzer->handleChipping(false);
 
-    if (initIMU()   != RocketError::OK) return RocketError::DeviceError;
-    if (initLoRa()  != RocketError::OK) return RocketError::DeviceError;
-    if (initGNSS()  != RocketError::OK) return RocketError::DeviceError;
+    if (initIMU() != RocketError::OK) return RocketError::DeviceError;
+    if (initLoRa() != RocketError::OK) return RocketError::DeviceError;
+    if (initGNSS() != RocketError::OK) return RocketError::DeviceError;
     if (initFlash() != RocketError::OK) return RocketError::DeviceError;
+    if (initBarometer() != RocketError::OK) return RocketError::DeviceError;
     
     printf("DeviceInitSuccess!\r\n");
     loraPrintf("DeviceInitSuccess!\r\n");
@@ -184,7 +186,29 @@ Rocket::RocketError Rocket::initLoRa(){
     }
     printf("LoraInitSuccess!\r\n");
     return RocketError::OK;
-    
+}
+
+Rocket::RocketError Rocket::initBarometer(){
+    if(m_barometer->init() != Barometer::BarometerError::OK){
+        printf("BarometerInitFailed!\r\n");
+        return RocketError::DeviceError;
+    }
+    fp64 temPre = 0.0f;
+    fp64 temTemp = 0.0f;
+    fp64 totalPre = 0.0f;
+    fp64 totalTemp = 0.0f;
+    for(uint8_t i = 0; i < BARO_SAMPLE_TIMES; i ++){
+        if(m_barometer->read(&temTemp, &temPre) != Barometer::BarometerError::OK){
+            printf("BarometerSampleFailed!\r\n");
+            return RocketError::DeviceError;
+        }
+        totalTemp += temTemp;
+        totalPre += temPre;
+    }
+    m_refTemp = totalTemp / BARO_SAMPLE_TIMES;
+    m_refPre = totalPre / BARO_SAMPLE_TIMES;
+    printf("BarometerInitSuccess!\r\n");
+    return RocketError::OK;
 }
 
 //==============================================================================
@@ -199,12 +223,10 @@ void Rocket::rocketTotalLoop(){
         }
         phaseSelect();
         parachuteLoop();
+        barometerLoop();
         sendFlightTelemetryPayloadLoop();
         sendSystemTelemetryPayloadLoop();
         m_nowTimeus = getTimestampUs();
-        // TODO:VoFa调试，用完删除
-        // m_vofa->voFaLoop();
-        // TODO:VoFa调试，用完删除
     } else{
         static bool buzzerOn = false;
         m_nowTimeus = getTimestampUs();
@@ -364,7 +386,7 @@ void Rocket::sendFlightTelemetryPayloadLoop(){
             payload.pitch_centidegree = static_cast<int16_t>((m_eulerAngle_rad[1] * 180.0f/MATH_PI) * 100.0f);
             payload.yaw_centidegree = static_cast<int16_t>((m_eulerAngle_rad[2] * 180.0f/MATH_PI) * 100.0f);
 
-            payload.relative_altitude_mm = static_cast<int32_t>(m_altitude_m * 1000.0f);
+            payload.relative_altitude_mm = static_cast<int32_t>(m_baroAltitude * 1000.0f);
 
             payload.vertical_velocity_mm_s = static_cast<int32_t>(m_velocity_m_s * 1000.0f);
             m_communicator->sendFlightTelemetryPayload(&payload);
@@ -386,7 +408,7 @@ void Rocket::sendFlightTelemetryPayloadLoop(){
             payload.pitch_centidegree = static_cast<int16_t>((m_eulerAngle_rad[1] * 180.0f/MATH_PI) * 100.0f);
             payload.yaw_centidegree = static_cast<int16_t>((m_eulerAngle_rad[2] * 180.0f/MATH_PI) * 100.0f);
 
-            payload.relative_altitude_mm = static_cast<int32_t>(m_altitude_m * 1000.0f);
+            payload.relative_altitude_mm = static_cast<int32_t>(m_baroAltitude * 1000.0f);
 
             payload.vertical_velocity_mm_s = static_cast<int32_t>(m_velocity_m_s * 1000.0f);
             m_communicator->sendFlightTelemetryPayload(&payload);
@@ -397,49 +419,58 @@ void Rocket::sendFlightTelemetryPayloadLoop(){
 
 void Rocket::loggerLoop()
 {
+    if (!isInitCompleted()) return;
     if (!m_logger->isStarted()) return;
 
-    LogEvent event{};
+    static constexpr uint32_t MAX_EVENTS_PER_LOOP = 4U;
 
-    if (xQueueReceive(m_logQueue, &event, pdMS_TO_TICKS(10)) != pdPASS) return;
-
-    switch (event.type)
-    {
-        case LogEventType::IMU:
-        {
-            m_logger->writeIMU(&event.data.imu);
-            break;
+    for (uint32_t processedCount = 0U; processedCount < MAX_EVENTS_PER_LOOP; ++processedCount){
+        LogEvent event{};
+        TickType_t waitTicks;
+        if (processedCount == 0U){
+            waitTicks = pdMS_TO_TICKS(10);
+        } else{
+            waitTicks = 0U;
         }
 
-        case LogEventType::GNSS:
-        {
-            m_logger->writeGNSS(&event.data.gnss);
-            break;
-        }
+        if (xQueueReceive(m_logQueue, &event, waitTicks) != pdPASS) return;
 
-        case LogEventType::AHRS:
+        switch (event.type)
         {
-            m_logger->writeAHRS(&event.data.ahrs);
-            break;
-        }
+            case LogEventType::IMU:
+            {
+                m_logger->writeIMU(&event.data.imu);
+                break;
+            }
 
-        case LogEventType::Power:
-        {
-            m_logger->writePower(&event.data.power);
-            break;
-        }
+            case LogEventType::GNSS:
+            {
+                m_logger->writeGNSS(&event.data.gnss);
+                break;
+            }
 
-        default:
-            break;
+            case LogEventType::AHRS:
+            {
+                m_logger->writeAHRS(&event.data.ahrs);
+                break;
+            }
+
+            case LogEventType::Power:
+            {
+                m_logger->writePower(&event.data.power);
+                break;
+            }
+
+            default:
+                break;
+        }
     }
 }
 
 void Rocket::GNSSLoop(){
     if(!m_gnss->isHasNewData()) return;
     m_gnss->handleGNSSMessageLoop();
-    // if(m_launchPhase == LaunchPhase::STANDBY || m_launchPhase == LaunchPhase::ARMED) return;
     LogEvent event{};
-
     event.type = LogEventType::GNSS;
     event.data.gnss.timestamp_us = getTimestampUs();
     event.data.gnss.iTOW_ms = m_gnss->getITOW();
@@ -460,6 +491,23 @@ void Rocket::GNSSLoop(){
         ++m_logDroppedCount;
     }
 
+    switch (m_launchPhase){
+        case LaunchPhase::STANDBY:{
+
+        }
+        case LaunchPhase::ARMED:{
+
+        }
+        case LaunchPhase::ASCENT:{
+            
+        }
+    }
+
+    uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+    if(temTimeStamp_ms - m_lastGNSSTelemetryTime_ms < GNSS_TELEMETRY_PERIOD_MS){
+        return;
+    }
+    m_lastGNSSTelemetryTime_ms = temTimeStamp_ms;
     Telemetry::GNSSTelemetryPayload payload;
     payload.timestamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
     payload.latitude_deg_e7 = m_gnss->getLatitude();
@@ -517,10 +565,21 @@ void Rocket::communicationLoop(){
     }
 }
 
+void Rocket::barometerLoop(){
+    if(!m_isInitedCompleted) return;
+    m_barometer->read(&m_rawtemperature, &m_rawPressure);
+    m_baroAltitude = m_barometer->calculateAltitude(m_rawPressure, m_refTemp, m_refPre);
+}
+
 void Rocket::sendSystemTelemetryPayloadLoop(){
     if(!m_lora->isLoRaBegined()) return;
+    uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+    if(temTimeStamp_ms - m_lastSystemTelemetryTime_ms < SYSTEM_TELEMETRY_PERIOD_MS){
+        return;
+    }
+    m_lastGNSSTelemetryTime_ms = temTimeStamp_ms;
     Telemetry::SystemTelemetryPayload payload{};
-    payload.system_status = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+    payload.timestamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
     payload.battery_mv = m_voltageProbe->readVoltage() * 1000ULL;
     payload.log_dropped_count = m_logDroppedCount;
 

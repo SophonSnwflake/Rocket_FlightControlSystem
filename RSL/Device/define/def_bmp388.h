@@ -44,6 +44,17 @@ extern "C" {
 #define LEN_SENSOR_TIME                    UINT8_C(3)
 #define FIFO_MAX_FRAMES                    UINT8_C(73)
 
+/**\name Temperature range values in integer and float */
+#define MIN_TEMP_INT                       INT64_C(-4000)
+#define MAX_TEMP_INT                       INT64_C(8500)
+#define MIN_TEMP_DOUBLE                    -40.0f
+#define MAX_TEMP_DOUBLE                    85.0f
+
+/**\name Pressure range values in integer and float */
+#define MIN_PRES_INT                       UINT64_C(3000000)
+#define MAX_PRES_INT                       UINT64_C(12500000)
+#define MIN_PRES_DOUBLE                    30000.0f
+#define MAX_PRES_DOUBLE                    125000.0f
 
 // PWR_CTRL 寄存器
 #define PRESS_ENABLE_MASK     0x01U

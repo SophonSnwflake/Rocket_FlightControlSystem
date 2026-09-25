@@ -101,6 +101,8 @@ private:
     uint64_t m_nowTimeus = 0;
     uint64_t m_lastBuzzerChangeTimeus = 0;
     uint32_t m_lastFlightTelemetryTime_ms = 0;
+    uint32_t m_lastSystemTelemetryTime_ms = 0;
+    uint32_t m_lastGNSSTelemetryTime_ms = 0;
     uint32_t m_lastVoltageProbeTime_ms = 0;
     uint16_t m_pitchParachuteConfirmTimes = 0;
     uint16_t m_altitude_m = 0;
@@ -113,11 +115,15 @@ private:
     uint32_t m_loggerErrorCount = 0;
     uint32_t m_parachuteIgnitedTime_ms = 0;
     fp32 m_voltage = 0.0f;
+    fp64 m_rawtemperature = 0.0f; // 当前温度
+    fp64 m_rawPressure = 0.0f; // 当前气压
+    fp64 m_refTemp = 0.0f; // 基准温度
+    fp64 m_refPre = 0.0f; // 基准气压
+    fp32 m_baroAltitude = 0.0f; // 气压计高度
     bool m_isInitedCompleted = false;
     bool m_isParachuteIgnited = false;
     bool m_isParachuteIgnitedAndClosed = false; // 判断点火电平是否复位
     bool m_isPrintingGNSSMessage = false;
-
     
     uint8_t m_UARTCommandRxBuffer[UART_COMMAND_RX_BUFFER_SIZE];
     volatile uint16_t m_UARTCommandRxLength = 0;
@@ -164,6 +170,7 @@ public:
     void communicationLoop();
     void GNSSLoop();
     void voltageProbeLoop();
+    void barometerLoop();
     void sendSystemTelemetryPayloadLoop();
     bool setPhaseBetweenSTANDBYandARMED(LaunchPhase launchPhase);
     void setUARTCommand(RocketCommand* command);
@@ -184,6 +191,7 @@ private:
     RocketError initFlash();
     RocketError initIMU();
     RocketError initGNSS();
+    RocketError initBarometer();
 
     // 状态指示相关
     uint64_t getTimestampUs();
