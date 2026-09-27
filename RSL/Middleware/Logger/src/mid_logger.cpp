@@ -56,8 +56,10 @@ RocketLogger::FlashLogError RocketLogger::append(uint8_t *data, uint32_t length)
     while(leftDataLength > leftBufferLength){
         memcpy(bufferptr + m_bufferedLength, dataptr, leftBufferLength);
         m_bufferedLength += leftBufferLength;
-        state = flush();
-        if(state != FlashLogError::OK) return state;
+        state = flushWithRetry();
+        if(state != FlashLogError::OK){
+            return state;
+        }
         dataptr += leftBufferLength;
         leftDataLength -= leftBufferLength;
         leftBufferLength = BufferSize - m_bufferedLength;
@@ -65,9 +67,27 @@ RocketLogger::FlashLogError RocketLogger::append(uint8_t *data, uint32_t length)
     memcpy(bufferptr + m_bufferedLength, dataptr, leftDataLength);
     m_bufferedLength += leftDataLength;
 
-    if (m_bufferedLength == BufferSize) return flush();
+    if (m_bufferedLength == BufferSize) return flushWithRetry();
     return FlashLogError::OK;
+}
 
+RocketLogger::FlashLogError RocketLogger::flushWithRetry(){
+    constexpr uint8_t MAX_FLUSH_ATTEMPTS = 4U;
+    FlashLogError result = FlashLogError::FlashError;
+
+    for (uint8_t attempt = 0U; attempt < MAX_FLUSH_ATTEMPTS; ++attempt){
+        result = flush();
+
+        if (result == FlashLogError::OK){
+            return FlashLogError::OK;
+        }
+
+        if (result == FlashLogError::StorageFull){
+            return result;
+        }
+    }
+
+    return result;
 }
 
 RocketLogger::FlashLogError RocketLogger::flush(){

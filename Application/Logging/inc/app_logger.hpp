@@ -49,6 +49,7 @@ public:
     FlightLoggerError writeFlightState(FlightStateMessage *flightStateMessage);
     FlightLoggerError writePower(PowerMessage *powerMessage);
     FlightLoggerError writeSystemHealth(SystemHealthMessage *systemHealthMessage);
+    FlightLoggerError writeSync();
 
     FlightLoggerError flush();
     FlightLoggerError stop();

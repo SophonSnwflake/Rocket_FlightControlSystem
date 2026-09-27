@@ -45,7 +45,7 @@ public:
 public:
     virtual ~IMU() = default;
     virtual bool init() = 0;
-    Vector3f solveAttitude();
+    bool solveAttitude(Vector3f *vector);
     bool isInited() {return m_Inited;}
     Vector3f getGyroRawData(){return m_gyroRawData;}
     Vector3f getAccelRawData(){return m_accelRawData;}

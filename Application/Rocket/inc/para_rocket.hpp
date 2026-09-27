@@ -13,6 +13,8 @@
 #define PARACHUTE_MAX_WAITING_TIME                          10.0f
 #define PARACHUTE_PITCH_CONFIRM_TIMES                       10
 #define LAUNCH_CONFIRM_TIMES                                10
+#define LANDED_CONFRIM_TIMES                                1000 // 判断是否着陆次数
+#define ALTITUDE_BARO_LANDED_STANDARD_M                     10 // 使用气压计高度判断是否着陆标准
 #define PARACHUTE_IGNITE_TIME_MS                            1000
 #define BUZZER_ALARM_PERIOD_MS                              1000U
 #define BARO_SAMPLE_TIMES                                   50  // 标准气压温度采样次数
@@ -21,8 +23,14 @@
 #define LOGGER_GYRO_BIAS_SCALE_FACTOR                       100000.0f
 #define LOGGER_IMU_SCALE_FACTOR                             100.0f
 
-#define FLIGHT_TELEMETRY_PERIOD_MS                          500
-#define FLIGHT_TELEMETRY_PERIOD_STANDBY_MS                  3000
-#define GNSS_TELEMETRY_PERIOD_MS                            2000
-#define SYSTEM_TELEMETRY_PERIOD_MS                          4000
-#define VOLTAGE_PROBE_PERIOD_MS                             1000
+#define TELEMETRY_FLIGHT_PERIOD_MS                          500
+#define TELEMETRY_GNSS_PERIOD_MS                            2000
+#define TELEMETRY_SYSTEM_PERIOD_MS                          4000
+#define TELEMETRY_FLIGHT_PERIOD_STANDBY_MS                  3000
+
+#define LOGGER_IMU_PERIOD_MS                                2
+#define LOGGER_AHRS_PERIOD_MS                               10
+#define LOGGER_FLIGHT_ESTIMATE_PERIOD_MS                    10
+#define LOGGER_POWER_MESSAGE_PERIOD_MS                      100
+#define LOGGER_SYSTEM_HEALTH_PERIOD_MS                      1000
+#define LOGGER_SYNC_PERIOD_MS                               500

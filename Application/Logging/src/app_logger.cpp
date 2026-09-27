@@ -209,43 +209,43 @@ FlightLogger::FlightLoggerError FlightLogger::writeSingleSubscription(ULogMessag
 
 FlightLogger::FlightLoggerError FlightLogger::writeIMU(IMURawMessage *imuMessage){
     if(m_isStarted != true) return FlightLoggerError::NotStarted;
-    LOG_TRY(writeData(ULogMessageId::ImuRaw, imuMessage, sizeof(*imuMessage)));
+    LOG_TRY(writeData(ULogMessageId::ImuRaw, imuMessage, IMU_RAW_MESSAGE_PAYLOAD_SIZE));
     return FlightLoggerError::OK;
 }
 
 FlightLogger::FlightLoggerError FlightLogger::writeGNSS(GNSSMessage *gnssMessage){
     if(m_isStarted != true) return FlightLoggerError::NotStarted;
-    LOG_TRY(writeData(ULogMessageId::Gnss, gnssMessage, sizeof(*gnssMessage)));
+    LOG_TRY(writeData(ULogMessageId::Gnss, gnssMessage, GNSS_MESSAGE_PAYLOAD_SIZE));
     return FlightLoggerError::OK;
 }
 
 FlightLogger::FlightLoggerError FlightLogger::writeAHRS(AHRSMessage *ahrsMessage){
     if(m_isStarted != true) return FlightLoggerError::NotStarted;
-    LOG_TRY(writeData(ULogMessageId::Ahrs, ahrsMessage, sizeof(*ahrsMessage)));
+    LOG_TRY(writeData(ULogMessageId::Ahrs, ahrsMessage, AHRS_MESSAGE_PAYLOAD_SIZE));
     return FlightLoggerError::OK;
 }
 
 FlightLogger::FlightLoggerError FlightLogger::writeFlightEstimate(FlightEstimateMessage *flightEstimateMessage){
     if(m_isStarted != true) return FlightLoggerError::NotStarted;
-    LOG_TRY(writeData(ULogMessageId::FlightEstimate, flightEstimateMessage, sizeof(*flightEstimateMessage)));
+    LOG_TRY(writeData(ULogMessageId::FlightEstimate, flightEstimateMessage, FLIGHT_ESTIMATE_MESSAGE_PAYLOAD_SIZE));
     return FlightLoggerError::OK;
 }
 
 FlightLogger::FlightLoggerError FlightLogger::writeFlightState(FlightStateMessage *flightStateMessage){
     if(m_isStarted != true) return FlightLoggerError::NotStarted;
-    LOG_TRY(writeData(ULogMessageId::FlightState, flightStateMessage, sizeof(*flightStateMessage)));
+    LOG_TRY(writeData(ULogMessageId::FlightState, flightStateMessage, FLIGHT_STATE_MESSAGE_PAYLOAD_SIZE));
     return FlightLoggerError::OK;
 }
 
 FlightLogger::FlightLoggerError FlightLogger::writePower(PowerMessage *powerMessage){
     if(m_isStarted != true) return FlightLoggerError::NotStarted;
-    LOG_TRY(writeData(ULogMessageId::Power, powerMessage, sizeof(*powerMessage)));
+    LOG_TRY(writeData(ULogMessageId::Power, powerMessage, POWER_MESSAGE_PAYLOAD_SIZE));
     return FlightLoggerError::OK;
 }
 
 FlightLogger::FlightLoggerError FlightLogger::writeSystemHealth(SystemHealthMessage *systemHealthMessage){
     if(m_isStarted != true) return FlightLoggerError::NotStarted;
-    LOG_TRY(writeData(ULogMessageId::SystemHealth, systemHealthMessage, sizeof(*systemHealthMessage)));
+    LOG_TRY(writeData(ULogMessageId::SystemHealth, systemHealthMessage, SYSTEM_HEALTH_MESSAGE_PAYLOAD_SIZE));
     return FlightLoggerError::OK;
 }
 
@@ -268,6 +268,34 @@ FlightLogger::FlightLoggerError FlightLogger::writeData(ULogMessageId messageID,
     result = m_LogWriter->append(reinterpret_cast<uint8_t*>(payload), length);
     if (result != RocketLogger::FlashLogError::OK)
     {
+        m_lastWriterError = result;
+        return FlightLoggerError::WriterError;
+    }
+
+    return FlightLoggerError::OK;
+}
+
+FlightLogger::FlightLoggerError FlightLogger::writeSync()
+{
+    if (!m_isStarted) {
+        return FlightLoggerError::NotStarted;
+    }
+
+    static constexpr uint8_t SYNC_MAGIC[8] = {
+        0x2F, 0x73, 0x13, 0x20,
+        0x25, 0x0C, 0xBB, 0x12
+    };
+
+    ulog_message_sync_s sync{};
+    sync.msg_size = sizeof(sync.sync_magic);
+    memcpy(sync.sync_magic, SYNC_MAGIC, sizeof(SYNC_MAGIC));
+
+    const RocketLogger::FlashLogError result =
+        m_LogWriter->append(
+            reinterpret_cast<uint8_t*>(&sync),
+            sizeof(sync));
+
+    if (result != RocketLogger::FlashLogError::OK) {
         m_lastWriterError = result;
         return FlightLoggerError::WriterError;
     }

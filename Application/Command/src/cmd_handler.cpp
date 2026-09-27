@@ -180,6 +180,14 @@ RSL::Command::CommandHandlerResult handleYes(void* context, std::size_t argc, co
         }
         Rocket::RocketError state;
         state = ctx->rocket->eraseAllChipForNewFlight();
+        if(state != Rocket::RocketError::OK){
+            if (ctx->source == Application::Command::CommandSource::UART){
+                printf("Flash erase failed!\r\n");
+            } else if(ctx->source == Application::Command::CommandSource::LoRa){
+                ctx->rocket->loraPrintf("Flash erase failed!\r\n");
+            }
+            return RSL::Command::CommandHandlerResult::Unsupported;
+        }
         state = ctx->rocket->initLogger();
         if(state != Rocket::RocketError::OK){
             if (ctx->source == Application::Command::CommandSource::UART){

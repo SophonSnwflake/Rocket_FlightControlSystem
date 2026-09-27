@@ -29,6 +29,8 @@ private:
     uint16_t m_bufferedLength = 0U;    // 当前 RAM 缓冲区中尚未写入 Flash 的字节数
     bool m_isPrepared        = false;  // 是否已经准备好（是否已经全片擦除）
 
+    FlashLogError flushWithRetry();
+
 public:
     RocketLogger(Flash *flash);
     ~RocketLogger() = default;

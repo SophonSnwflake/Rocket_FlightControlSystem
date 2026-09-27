@@ -1,5 +1,7 @@
 #include "app_rocket.hpp"
 #include "agr_telemetry_protocal.hpp"
+#include "app_logger.hpp"
+#include "dvc_barometer.hpp"
 #include "dvc_vofa.hpp"
 #include "mid_logger.hpp"
 #include "para_rocket.hpp"
@@ -212,7 +214,7 @@ Rocket::RocketError Rocket::initBarometer(){
 }
 
 //==============================================================================
-// 执行逻辑
+// 会话逻辑循环
 //==============================================================================
 
 void Rocket::rocketTotalLoop(){  
@@ -226,6 +228,10 @@ void Rocket::rocketTotalLoop(){
         barometerLoop();
         sendFlightTelemetryPayloadLoop();
         sendSystemTelemetryPayloadLoop();
+        logFlightEstimateMessageLoop();
+        logPowerMessageLoop();
+        logSystemHealthMessageLoop();
+        
         m_nowTimeus = getTimestampUs();
     } else{
         static bool buzzerOn = false;
@@ -237,132 +243,69 @@ void Rocket::rocketTotalLoop(){
             buzzerOn = !buzzerOn;
             m_buzzer->handleChipping(buzzerOn);
         }
-        
     }
 }
 
-void Rocket::parachuteLoop(){
+void Rocket::phaseSelect(){
     switch(m_launchPhase){
-        case LaunchPhase::STANDBY:{
+        case LaunchPhase::STANDBY :{
+            getTimestampUs();
             break;
         }
-        case LaunchPhase::ARMED:{
-            break;
-        }
-        case LaunchPhase::ASCENT:{
-            break;
-        }
-        case LaunchPhase::DESCENT:{
-            if(m_isParachuteIgnited){
+        case LaunchPhase::ARMED :{
+            if (isAccelLaunched()){
+                m_isAccelLaunchedConfirmTimes ++;
+                if(m_isAccelLaunchedConfirmTimes >= LAUNCH_CONFIRM_TIMES){
+                    m_isAccelLaunchedConfirmTimes = 0;
+                    m_launchTimeus = getTimestampUs();
+                    m_launchPhase = LaunchPhase::ASCENT;
+                }
                 break;
             }else{
-                igniteParachute();
-                m_isParachuteIgnited = true;
+                m_isAccelLaunchedConfirmTimes = 0;
                 break;
+            }
+            break;
+        }
+        case LaunchPhase::ASCENT:{  
+            m_isAllChipErased = false;
+            m_nowTimeus = getTimestampUs();
+            // 防止由于执行顺序导致的溢出
+            if(m_nowTimeus <= m_launchTimeus){
+                break;
+            }
+            if (m_nowTimeus - m_launchTimeus >= PARACHUTE_MAX_WAITING_TIME * 1000000ULL){
+                m_launchPhase = LaunchPhase::DESCENT;
+                break;
+            }
+            if (isPitchOutOfCritialPoint()){
+                m_pitchParachuteConfirmTimes ++;
+                if(m_pitchParachuteConfirmTimes >= PARACHUTE_PITCH_CONFIRM_TIMES){
+                    m_pitchParachuteConfirmTimes = 0;
+                    m_launchPhase = LaunchPhase::DESCENT;
+                }
+                break;
+            }else{
+                m_pitchParachuteConfirmTimes = 0;
+                break;
+            }
+        }
+        case LaunchPhase::DESCENT:{
+            if (isLanded()){
+                m_isLandedConfirmTimes ++;
+                if (m_isLandedConfirmTimes >= LANDED_CONFRIM_TIMES){
+                    m_isLandedConfirmTimes = 0;
+                    m_launchTimeus = getTimestampUs();
+                    m_launchPhase = LaunchPhase::LANDED;
+                }
+                break;
+            }
+            else{
+                m_isLandedConfirmTimes = 0;
             }
             break;
         }
         case LaunchPhase::LANDED:{
-            break;
-        }
-    }
-
-    const uint32_t currentTime_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
-    if (m_isParachuteIgnited && !m_isParachuteIgnitedAndClosed) {
-        if (static_cast<uint32_t>(currentTime_ms - m_parachuteIgnitedTime_ms) >= PARACHUTE_IGNITE_TIME_MS){
-            unIgniteParachute();
-            m_isParachuteIgnitedAndClosed = true;
-        }
-    }
-}
-
-void Rocket::imuLoop()
-{
-    // taskENTER_CRITICAL();
-    m_eulerAngle_rad = m_imu->solveAttitude();
-    // taskEXIT_CRITICAL();
-    m_rawAccel = m_imu->getAccelRawData();
-
-    // // TODO:VoFa调试，用完删除
-    // const RSLMath::Vector3f gyroTest = m_imu->getGyroRawData();
-    // m_vofa->setChannel(0, gyroTest[0]);
-    // m_vofa->setChannel(1, gyroTest[1]);
-    // m_vofa->setChannel(2, gyroTest[2]);
-    // // TODO:VoFa调试，用完删除
-
-    switch (m_launchPhase)
-    {  
-        case LaunchPhase::STANDBY:
-        {
-            break;
-        }
-
-        case LaunchPhase::ARMED:
-        case LaunchPhase::ASCENT:
-        case LaunchPhase::DESCENT:
-        {
-            const RSLMath::Vector3f accel =
-                m_imu->getAccelRawData();
-
-            const RSLMath::Vector3f gyro =
-                m_imu->getGyroRawData();
-
-            LogEvent IMUevent{};
-
-            IMUevent.type = LogEventType::IMU;
-
-            IMUevent.data.imu.timestamp = getTimestampUs();
-            IMUevent.data.imu.sequence  = ++m_imuSequence;
-
-            IMUevent.data.imu.accel_raw[0] =
-                static_cast<int16_t>(accel[0] * LOGGER_IMU_SCALE_FACTOR);
-
-            IMUevent.data.imu.accel_raw[1] =
-                static_cast<int16_t>(accel[1] * LOGGER_IMU_SCALE_FACTOR);
-
-            IMUevent.data.imu.accel_raw[2] =
-                static_cast<int16_t>(accel[2] * LOGGER_IMU_SCALE_FACTOR);
-
-            IMUevent.data.imu.gyro_raw[0] =
-                static_cast<int16_t>(gyro[0] * LOGGER_IMU_SCALE_FACTOR);
-
-            IMUevent.data.imu.gyro_raw[1] =
-                static_cast<int16_t>(gyro[1] * LOGGER_IMU_SCALE_FACTOR);
-
-            IMUevent.data.imu.gyro_raw[2] =
-                static_cast<int16_t>(gyro[2] * LOGGER_IMU_SCALE_FACTOR);
-
-            if (xQueueSend( m_logQueue, &IMUevent, 0) != pdPASS)
-            {
-                ++m_logDroppedCount;
-            }
-
-            LogEvent AHRSevent{};
-            AHRSevent.type = LogEventType::AHRS;
-            AHRSevent.data.ahrs.timestamp_us = getTimestampUs();
-            AHRSevent.data.ahrs.gyroBias[0] = m_imu->getGyroBias()[0] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
-            AHRSevent.data.ahrs.gyroBias[1] = m_imu->getGyroBias()[1] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
-            AHRSevent.data.ahrs.gyroBias[2] = m_imu->getGyroBias()[2] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
-
-            const fp32* quaternionFP32 = m_imu->m_ahrs->getQuaternion();
-            for (int i = 0; i < 4; ++i){
-                AHRSevent.data.ahrs.quaternion[i] = static_cast<int16_t>(quaternionFP32[i] * LOGGER_QUATERNION_SCALE_FACTOR);
-            }
-            if (xQueueSend( m_logQueue, &AHRSevent, 0) != pdPASS)
-            {
-                ++m_logDroppedCount;
-            }
-
-            break;
-        }
-
-        case LaunchPhase::LANDED:
-        {
-            break;
-        }
-
-        case LaunchPhase::SELF_TEST:
-        {
             break;
         }
     }
@@ -375,7 +318,7 @@ void Rocket::sendFlightTelemetryPayloadLoop(){
         case LaunchPhase::STANDBY:
         case LaunchPhase::SELF_TEST:
             temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
-            if(temTimeStamp_ms - m_lastFlightTelemetryTime_ms < FLIGHT_TELEMETRY_PERIOD_STANDBY_MS){
+            if(temTimeStamp_ms - m_lastFlightTelemetryTime_ms < TELEMETRY_FLIGHT_PERIOD_STANDBY_MS){
                 return;
             }
             m_lastFlightTelemetryTime_ms = temTimeStamp_ms;
@@ -388,7 +331,7 @@ void Rocket::sendFlightTelemetryPayloadLoop(){
 
             payload.relative_altitude_mm = static_cast<int32_t>(m_baroAltitude * 1000.0f);
 
-            payload.vertical_velocity_mm_s = static_cast<int32_t>(m_velocity_m_s * 1000.0f);
+            payload.vertical_velocity_mm_s = static_cast<int32_t>(m_gnss->getVelocityDown() * -1000.0f);
             m_communicator->sendFlightTelemetryPayload(&payload);
             break;
 
@@ -397,7 +340,7 @@ void Rocket::sendFlightTelemetryPayloadLoop(){
         case LaunchPhase::DESCENT:
         case LaunchPhase::LANDED:
             temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
-            if(temTimeStamp_ms - m_lastFlightTelemetryTime_ms < FLIGHT_TELEMETRY_PERIOD_MS){
+            if(temTimeStamp_ms - m_lastFlightTelemetryTime_ms < TELEMETRY_FLIGHT_PERIOD_MS){
                 return;
             }
             m_lastFlightTelemetryTime_ms = temTimeStamp_ms;
@@ -416,13 +359,28 @@ void Rocket::sendFlightTelemetryPayloadLoop(){
     }
 }
 
-
 void Rocket::loggerLoop()
 {
     if (!isInitCompleted()) return;
     if (!m_logger->isStarted()) return;
 
     static constexpr uint32_t MAX_EVENTS_PER_LOOP = 4U;
+
+    const uint32_t nowMs =
+    static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+
+    if (nowMs - m_lastLoggerSyncTime_ms >= LOGGER_SYNC_PERIOD_MS) {
+        m_lastLoggerSyncTime_ms = nowMs;
+        if (m_logger->writeSync() !=  RocketLog::FlightLogger::FlightLoggerError::OK) {
+            {
+                m_loggerErrorCount ++;
+                if (m_flashErrorCount != UINT16_MAX) {
+                    ++m_flashErrorCount;
+                }
+                setSystemHealthError(SystemHealthErrorFlag::LoggerWriteFailed);
+                }
+        }
+    }
 
     for (uint32_t processedCount = 0U; processedCount < MAX_EVENTS_PER_LOOP; ++processedCount){
         LogEvent event{};
@@ -437,27 +395,69 @@ void Rocket::loggerLoop()
 
         switch (event.type)
         {
-            case LogEventType::IMU:
-            {
-                m_logger->writeIMU(&event.data.imu);
+            case LogEventType::IMU:{
+                if (m_logger->writeIMU(&event.data.imu) != RocketLog::FlightLogger::FlightLoggerError::OK){
+                    m_loggerErrorCount ++;
+                    if (m_flashErrorCount != UINT16_MAX) {
+                        ++m_flashErrorCount;
+                    }
+                    setSystemHealthError(SystemHealthErrorFlag::LoggerWriteFailed);
+                }
                 break;
             }
 
-            case LogEventType::GNSS:
-            {
-                m_logger->writeGNSS(&event.data.gnss);
+            case LogEventType::GNSS:{
+                if (m_logger->writeGNSS(&event.data.gnss) != RocketLog::FlightLogger::FlightLoggerError::OK){
+                    m_loggerErrorCount ++;
+                    if (m_flashErrorCount != UINT16_MAX) {
+                        ++m_flashErrorCount;
+                    }
+                    setSystemHealthError(SystemHealthErrorFlag::LoggerWriteFailed);
+                }
                 break;
             }
 
-            case LogEventType::AHRS:
-            {
-                m_logger->writeAHRS(&event.data.ahrs);
+            case LogEventType::AHRS:{
+                if (m_logger->writeAHRS(&event.data.ahrs) != RocketLog::FlightLogger::FlightLoggerError::OK){
+                    m_loggerErrorCount ++;
+                    if (m_flashErrorCount != UINT16_MAX) {
+                        ++m_flashErrorCount;
+                    }
+                    setSystemHealthError(SystemHealthErrorFlag::LoggerWriteFailed);
+                }
                 break;
             }
 
-            case LogEventType::Power:
-            {
-                m_logger->writePower(&event.data.power);
+            case LogEventType::FlightEstimate:{
+                if (m_logger->writeFlightEstimate(&event.data.flightEstimate) != RocketLog::FlightLogger::FlightLoggerError::OK){
+                    m_loggerErrorCount ++;
+                    if (m_flashErrorCount != UINT16_MAX) {
+                        ++m_flashErrorCount;
+                    }
+                    setSystemHealthError(SystemHealthErrorFlag::LoggerWriteFailed);
+                }
+                break;
+            }
+
+            case LogEventType::Power:{
+                if (m_logger->writePower(&event.data.power) != RocketLog::FlightLogger::FlightLoggerError::OK){
+                    m_loggerErrorCount ++;
+                    if (m_flashErrorCount != UINT16_MAX) {
+                        ++m_flashErrorCount;
+                    }
+                    setSystemHealthError(SystemHealthErrorFlag::LoggerWriteFailed);
+                }
+                break;
+            }
+
+            case LogEventType::SystemHealth:{
+                if (m_logger->writeSystemHealth(&event.data.systemHealth) != RocketLog::FlightLogger::FlightLoggerError::OK){
+                    m_loggerErrorCount ++;
+                    if (m_flashErrorCount != UINT16_MAX) {
+                        ++m_flashErrorCount;
+                    }
+                    setSystemHealthError(SystemHealthErrorFlag::LoggerWriteFailed);
+                }
                 break;
             }
 
@@ -465,59 +465,6 @@ void Rocket::loggerLoop()
                 break;
         }
     }
-}
-
-void Rocket::GNSSLoop(){
-    if(!m_gnss->isHasNewData()) return;
-    m_gnss->handleGNSSMessageLoop();
-    LogEvent event{};
-    event.type = LogEventType::GNSS;
-    event.data.gnss.timestamp_us = getTimestampUs();
-    event.data.gnss.iTOW_ms = m_gnss->getITOW();
-    event.data.gnss.latitude_deg_e7 = m_gnss->getLatitude();
-    event.data.gnss.longitude_deg_e7 = m_gnss->getLongitude();
-    event.data.gnss.altitude_msl_mm = m_gnss->getAltitude();
-    event.data.gnss.velocity_north_mm_s = m_gnss->getVelocityNorth();
-    event.data.gnss.velocity_east_mm_s = m_gnss->getVelocityEast();
-    event.data.gnss.velocity_down_mm_s = m_gnss->getVelocityDown();
-    event.data.gnss.h_accuracy_mm = m_gnss->getHAccuracy();
-    event.data.gnss.v_accuracy_mm = m_gnss->getVAccuracy();
-    event.data.gnss.speed_accuracy_mm_s = m_gnss->getSpeedAccuracy();
-    event.data.gnss.valid_flags = m_gnss->getValid();
-    event.data.gnss.fix_type = m_gnss->getFixType();
-    event.data.gnss.num_satellites = m_gnss->getNumSatellites();
-
-    if (xQueueSend( m_logQueue, &event, 0) != pdPASS){
-        ++m_logDroppedCount;
-    }
-
-    switch (m_launchPhase){
-        case LaunchPhase::STANDBY:{
-
-        }
-        case LaunchPhase::ARMED:{
-
-        }
-        case LaunchPhase::ASCENT:{
-            
-        }
-    }
-
-    uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
-    if(temTimeStamp_ms - m_lastGNSSTelemetryTime_ms < GNSS_TELEMETRY_PERIOD_MS){
-        return;
-    }
-    m_lastGNSSTelemetryTime_ms = temTimeStamp_ms;
-    Telemetry::GNSSTelemetryPayload payload;
-    payload.timestamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
-    payload.latitude_deg_e7 = m_gnss->getLatitude();
-    payload.longitude_deg_e7 = m_gnss->getLongitude();
-    payload.altitude_msl_mm = m_gnss->getAltitude();
-    payload.fix_type = m_gnss->getFixType();
-    payload.valid_flags = m_gnss->getValid();
-    payload.num_satellites = m_gnss->getNumSatellites();
-
-    m_communicator->sendGNSSTelemetryPayload(&payload);
 }
 
 void Rocket::communicationLoop(){
@@ -565,95 +512,320 @@ void Rocket::communicationLoop(){
     }
 }
 
-void Rocket::barometerLoop(){
-    if(!m_isInitedCompleted) return;
-    m_barometer->read(&m_rawtemperature, &m_rawPressure);
-    m_baroAltitude = m_barometer->calculateAltitude(m_rawPressure, m_refTemp, m_refPre);
-}
-
-void Rocket::sendSystemTelemetryPayloadLoop(){
-    if(!m_lora->isLoRaBegined()) return;
-    uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
-    if(temTimeStamp_ms - m_lastSystemTelemetryTime_ms < SYSTEM_TELEMETRY_PERIOD_MS){
-        return;
-    }
-    m_lastSystemTelemetryTime_ms = temTimeStamp_ms;
-    Telemetry::SystemTelemetryPayload payload{};
-    payload.timestamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
-    payload.battery_mv = m_voltageProbe->readVoltage() * 1000ULL;
-    payload.log_dropped_count = m_logDroppedCount;
-
-    m_communicator->sendSystemTelemetryPayload(&payload);
-}
-
-// TODO:调试专用，用完删除
-void Rocket::voltageProbeLoop(){
-    if(m_voltageProbe == nullptr) return;
-    uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
-    if(temTimeStamp_ms - m_lastVoltageProbeTime_ms < VOLTAGE_PROBE_PERIOD_MS)return;
-    m_lastVoltageProbeTime_ms = temTimeStamp_ms;
-    m_voltage = m_voltageProbe->readVoltage();
-    printf("Voltage: %.2f V\r\n", m_voltage);
-}
-// TODO:调试专用，用完删除
-
-Rocket::RocketError Rocket::eraseAllChipForNewFlight(){
-    RocketLog::RocketLogger::FlashLogError state;
-    state = m_loggerWriter->prepareNewFlight();
-    if(state != RocketLog::RocketLogger::FlashLogError::OK){
-        return Rocket::RocketError::DeviceError;
-    }
-    return Rocket::RocketError::OK;
-}
-
-void Rocket::phaseSelect(){
+//==============================================================================
+// 单个节点循环
+//==============================================================================
+void Rocket::parachuteLoop(){
     switch(m_launchPhase){
-        case LaunchPhase::STANDBY :{
-            getTimestampUs();
+        case LaunchPhase::STANDBY:{
             break;
         }
-        case LaunchPhase::ARMED :{
-            if (isAccelLaunched()){
-                m_isAccelLaunchedConfirmTimes ++;
-                if(m_isAccelLaunchedConfirmTimes >= LAUNCH_CONFIRM_TIMES){
-                    m_launchTimeus = getTimestampUs();
-                    m_launchPhase = LaunchPhase::ASCENT;
-                }
-                break;
-            }else{
-                m_isAccelLaunchedConfirmTimes = 0;
-                break;
-            }
+        case LaunchPhase::ARMED:{
             break;
         }
-        case LaunchPhase::ASCENT:{  
-            m_nowTimeus = getTimestampUs();
-            // 防止由于执行顺序导致的溢出
-            if(m_nowTimeus <= m_launchTimeus){
-                break;
-            }
-            if (m_nowTimeus - m_launchTimeus >= PARACHUTE_MAX_WAITING_TIME * 1000000ULL){
-                m_launchPhase = LaunchPhase::DESCENT;
-                break;
-            }
-            if (isPitchOutOfCritialPoint()){
-                m_pitchParachuteConfirmTimes ++;
-                if(m_pitchParachuteConfirmTimes >= PARACHUTE_PITCH_CONFIRM_TIMES){
-                    m_launchPhase = LaunchPhase::DESCENT;
-                }
-                break;
-            }else{
-                m_pitchParachuteConfirmTimes = 0;
-                break;
-            }
+        case LaunchPhase::ASCENT:{
+            break;
         }
         case LaunchPhase::DESCENT:{
+            if(m_isParachuteIgnited){
+                break;
+            }else{
+                igniteParachute();
+                m_isParachuteIgnited = true;
+                break;
+            }
             break;
         }
         case LaunchPhase::LANDED:{
             break;
         }
     }
+
+    const uint32_t currentTime_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+    if (m_isParachuteIgnited && !m_isParachuteIgnitedAndClosed) {
+        if (static_cast<uint32_t>(currentTime_ms - m_parachuteIgnitedTime_ms) >= PARACHUTE_IGNITE_TIME_MS){
+            unIgniteParachute();
+            m_isParachuteIgnitedAndClosed = true;
+        }
+    }
+}
+
+void Rocket::imuLoop()
+{
+    if(m_imu->solveAttitude(&m_eulerAngle_rad) != true){
+        m_imuErrorCount ++;
+        return;
+    }
+    m_imuSequence ++;
+    m_rawAccel = m_imu->getAccelRawData();
+    switch (m_launchPhase)
+    {  
+        case LaunchPhase::STANDBY:
+        {
+            break;
+        }
+
+        case LaunchPhase::ARMED:
+        case LaunchPhase::ASCENT:
+        case LaunchPhase::DESCENT:
+        {
+            const RSLMath::Vector3f accel =
+                m_imu->getAccelRawData();
+
+            const RSLMath::Vector3f gyro =
+                m_imu->getGyroRawData();
+
+            uint32_t temTimeStamp_imuLog_us;
+            temTimeStamp_imuLog_us = getTimestampUs();
+            if(temTimeStamp_imuLog_us - m_lastIMULog_us < LOGGER_IMU_PERIOD_MS * 1000){
+                return;
+            }
+            m_lastIMULog_us = temTimeStamp_imuLog_us;
+
+            LogEvent IMUevent{};
+
+            IMUevent.type = LogEventType::IMU;
+
+            IMUevent.data.imu.timestamp = getTimestampUs();
+            IMUevent.data.imu.sequence  = m_imuSequence;
+
+            IMUevent.data.imu.accel_raw[0] =
+                static_cast<int16_t>(accel[0] * LOGGER_IMU_SCALE_FACTOR);
+
+            IMUevent.data.imu.accel_raw[1] =
+                static_cast<int16_t>(accel[1] * LOGGER_IMU_SCALE_FACTOR);
+
+            IMUevent.data.imu.accel_raw[2] =
+                static_cast<int16_t>(accel[2] * LOGGER_IMU_SCALE_FACTOR);
+
+            IMUevent.data.imu.gyro_raw[0] =
+                static_cast<int16_t>(gyro[0] * LOGGER_IMU_SCALE_FACTOR);
+
+            IMUevent.data.imu.gyro_raw[1] =
+                static_cast<int16_t>(gyro[1] * LOGGER_IMU_SCALE_FACTOR);
+
+            IMUevent.data.imu.gyro_raw[2] =
+                static_cast<int16_t>(gyro[2] * LOGGER_IMU_SCALE_FACTOR);
+
+            if (xQueueSend( m_logQueue, &IMUevent, 0) != pdPASS)
+            {
+                incrementLoggerDroppedCount();
+                setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
+            }
+
+            uint32_t temTimeStamp_ahrsLog_us;
+            temTimeStamp_ahrsLog_us = getTimestampUs();
+            if(temTimeStamp_ahrsLog_us - m_lastAHRSLog_us < LOGGER_AHRS_PERIOD_MS * 1000){
+                return;
+            }
+            m_lastAHRSLog_us = temTimeStamp_ahrsLog_us;
+
+            LogEvent AHRSevent{};
+            AHRSevent.type = LogEventType::AHRS;
+            AHRSevent.data.ahrs.timestamp = getTimestampUs();
+            AHRSevent.data.ahrs.gyroBias[0] = m_imu->getGyroBias()[0] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
+            AHRSevent.data.ahrs.gyroBias[1] = m_imu->getGyroBias()[1] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
+            AHRSevent.data.ahrs.gyroBias[2] = m_imu->getGyroBias()[2] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
+
+            const fp32* quaternionFP32 = m_imu->m_ahrs->getQuaternion();
+            for (int i = 0; i < 4; ++i){
+                AHRSevent.data.ahrs.quaternion[i] = static_cast<int16_t>(quaternionFP32[i] * LOGGER_QUATERNION_SCALE_FACTOR);
+            }
+            if (xQueueSend( m_logQueue, &AHRSevent, 0) != pdPASS)
+            {
+                incrementLoggerDroppedCount();
+                setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
+            }
+            break;
+        }
+
+        case LaunchPhase::LANDED:
+        {
+            break;
+        }
+
+        case LaunchPhase::SELF_TEST:
+        {
+            break;
+        }
+    }
+}
+
+void Rocket::GNSSLoop(){
+    if(!m_gnss->isHasNewData()) return;
+    m_gnss->handleGNSSMessageLoop();
+    if (!m_logger->isStarted()) return;
+    LogEvent event{};
+    event.type = LogEventType::GNSS;
+    event.data.gnss.timestamp = getTimestampUs();
+    event.data.gnss.iTOW_ms = m_gnss->getITOW();
+    event.data.gnss.latitude_deg_e7 = m_gnss->getLatitude();
+    event.data.gnss.longitude_deg_e7 = m_gnss->getLongitude();
+    event.data.gnss.altitude_msl_mm = m_gnss->getAltitude();
+    event.data.gnss.velocity_north_mm_s = m_gnss->getVelocityNorth();
+    event.data.gnss.velocity_east_mm_s = m_gnss->getVelocityEast();
+    event.data.gnss.velocity_down_mm_s = m_gnss->getVelocityDown();
+    event.data.gnss.h_accuracy_mm = m_gnss->getHAccuracy();
+    event.data.gnss.v_accuracy_mm = m_gnss->getVAccuracy();
+    event.data.gnss.speed_accuracy_mm_s = m_gnss->getSpeedAccuracy();
+    event.data.gnss.valid_flags = m_gnss->getValid();
+    event.data.gnss.fix_type = m_gnss->getFixType();
+    event.data.gnss.num_satellites = m_gnss->getNumSatellites();
+
+    if (xQueueSend( m_logQueue, &event, 0) != pdPASS){
+        incrementLoggerDroppedCount();
+        setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
+    }
+
+    switch (m_launchPhase){
+        case LaunchPhase::STANDBY:{
+
+        }
+        case LaunchPhase::ARMED:{
+
+        }
+        case LaunchPhase::ASCENT:{
+            
+        }
+    }
+
+    uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+    if(temTimeStamp_ms - m_lastGNSSTelemetryTime_ms < TELEMETRY_GNSS_PERIOD_MS){
+        return;
+    }
+    m_lastGNSSTelemetryTime_ms = temTimeStamp_ms;
+    Telemetry::GNSSTelemetryPayload payload;
+    payload.timestamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+    payload.latitude_deg_e7 = m_gnss->getLatitude();
+    payload.longitude_deg_e7 = m_gnss->getLongitude();
+    payload.altitude_msl_mm = m_gnss->getAltitude();
+    payload.fix_type = m_gnss->getFixType();
+    payload.valid_flags = m_gnss->getValid();
+    payload.num_satellites = m_gnss->getNumSatellites();
+
+    m_communicator->sendGNSSTelemetryPayload(&payload);
+}
+
+void Rocket::sendSystemTelemetryPayloadLoop(){
+    if(!m_lora->isLoRaBegined()) return;
+    uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+    if(temTimeStamp_ms - m_lastSystemTelemetryTime_ms < TELEMETRY_SYSTEM_PERIOD_MS){
+        return;
+    }
+    m_lastSystemTelemetryTime_ms = temTimeStamp_ms;
+    Telemetry::SystemTelemetryPayload payload{};
+    payload.timestamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+    payload.battery_mv = m_voltageProbe->readVoltage() * 1000ULL;
+    payload.log_dropped_count = m_loggerDroppedCount;
+
+    m_communicator->sendSystemTelemetryPayload(&payload);
+}
+
+void Rocket::barometerLoop(){
+    if(!m_isInitedCompleted) return;
+    if (m_barometer->read(&m_rawtemperature, &m_rawPressure) != Barometer::BarometerError::OK){
+        if (m_baroErrorCount != UINT16_MAX){
+            m_baroErrorCount ++;
+        }
+        setSystemHealthError(SystemHealthErrorFlag::BarometerReadFailed);
+        return;
+    }
+    m_baroAltitude = m_barometer->calculateAltitude(m_rawPressure, m_refTemp, m_refPre);
+}
+
+void Rocket::logFlightEstimateMessageLoop(){
+    if (!isInitCompleted()) return;
+    if (!m_logger->isStarted()) return;
+    uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+    if(temTimeStamp_ms - m_lastLoggerFlightEstimateTime_ms < LOGGER_FLIGHT_ESTIMATE_PERIOD_MS){
+        return;
+    }
+    m_lastLoggerFlightEstimateTime_ms = temTimeStamp_ms;
+
+    LogEvent FlightEstimateMessage{};
+
+    FlightEstimateMessage.type = LogEventType::FlightEstimate;
+
+    FlightEstimateMessage.data.flightEstimate.timestamp = getTimestampUs();
+    FlightEstimateMessage.data.flightEstimate.barometer_altitude_m = m_baroAltitude;
+
+    if (xQueueSend(m_logQueue, &FlightEstimateMessage, 0) != pdPASS){
+        incrementLoggerDroppedCount();
+    }
+}
+
+void Rocket::logPowerMessageLoop(){
+    if (!isInitCompleted()) return;
+    if (!m_logger->isStarted()) return;
+    uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+    if(temTimeStamp_ms - m_lastLoggerPowerMessage_ms < LOGGER_POWER_MESSAGE_PERIOD_MS){
+        return;
+    }
+    m_lastLoggerPowerMessage_ms = temTimeStamp_ms;
+
+    LogEvent PowerMessageMessage{};
+
+    PowerMessageMessage.type = LogEventType::Power;
+    PowerMessageMessage.data.power.timestamp = getTimestampUs();
+    PowerMessageMessage.data.power.battery_voltage_mv = m_voltageProbe->readVoltage() * 1000.0f;
+
+    if (xQueueSend(m_logQueue, &PowerMessageMessage, 0) != pdPASS){
+        incrementLoggerDroppedCount();
+        setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
+    }
+}
+
+void Rocket::logSystemHealthMessageLoop(){
+    if (!isInitCompleted()) return;
+    if (!m_logger->isStarted()) return;
+    uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
+    if(temTimeStamp_ms - m_lastSystemHealthMessage_ms < LOGGER_SYSTEM_HEALTH_PERIOD_MS){
+        return;
+    }
+    m_lastSystemHealthMessage_ms = temTimeStamp_ms;
+
+    if (m_loggerWriter->remainingCapacity() <= 31U){
+        setSystemHealthError(SystemHealthErrorFlag::LoggerStorageFull);
+    }
+
+    uint32_t errorFlags;
+
+    taskENTER_CRITICAL();
+    errorFlags = m_systemHealthErrorFlags;
+    taskEXIT_CRITICAL();
+
+    LogEvent SystemHealthMessage{};
+
+    SystemHealthMessage.type = LogEventType::SystemHealth;
+
+    SystemHealthMessage.data.systemHealth.timestamp = getTimestampUs();
+    SystemHealthMessage.data.systemHealth.error_flags = errorFlags;
+    SystemHealthMessage.data.systemHealth.baro_error_count = m_baroErrorCount;
+    SystemHealthMessage.data.systemHealth.flash_error_count = m_flashErrorCount;
+    SystemHealthMessage.data.systemHealth.gnss_error_count = m_gnssErrorCount;
+    SystemHealthMessage.data.systemHealth.imu_error_count = m_imuErrorCount;
+    SystemHealthMessage.data.systemHealth.logger_queue_overflows = m_loggerDroppedCount;
+    SystemHealthMessage.data.systemHealth.logger_buffer_usage = static_cast<uint16_t>(m_loggerWriter->bytesBuffered());
+
+    if (xQueueSend(m_logQueue, &SystemHealthMessage, 0) != pdPASS){
+        incrementLoggerDroppedCount();
+        setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
+    }
+}
+
+//==============================================================================
+// Helper
+//==============================================================================
+
+Rocket::RocketError Rocket::eraseAllChipForNewFlight(){
+    RocketLog::RocketLogger::FlashLogError state;
+    state = m_loggerWriter->prepareNewFlight();
+    if(state != RocketLog::RocketLogger::FlashLogError::OK){
+        m_isAllChipErased = false;
+        return Rocket::RocketError::DeviceError;
+    }
+    m_isAllChipErased = true;
+    return Rocket::RocketError::OK;
 }
 
 bool Rocket::setPhaseBetweenSTANDBYandARMED(LaunchPhase launchPhase){
@@ -664,6 +836,7 @@ bool Rocket::setPhaseBetweenSTANDBYandARMED(LaunchPhase launchPhase){
     if(launchPhase == m_launchPhase){
         return true;
     }
+    if (m_launchPhase == LaunchPhase::STANDBY && m_isAllChipErased == false) return false;
     m_buzzer->handleChipping(true);
     osDelay(80);
     m_buzzer->handleChipping(false);
@@ -738,24 +911,15 @@ bool Rocket::loraPrintf(const char* format, ...){
     return result == Communicator::CommunicatorError::OK;
 }
 
-
-bool Rocket::isAccelLaunched(){
-    if(m_rawAccel[2] >= LAUNCH_ACCEL_CRITICAL_VALUE + GRAVITY_ACCELERATION_M_S2){
-        return true;
-    }
-    return false;
-}
-
-bool Rocket::isPitchOutOfCritialPoint(){
-    if (m_eulerAngle_rad[1] <= (MATH_PI / 2) - (PARACHUTE_PITCH_CRITICAL_POINT_DEG / 180.0f * MATH_PI)){
-        return true;
-    }
-    return false;
-}
-
 Rocket::RocketError Rocket::readAllFlashDataThroughUART()
 {
     RocketLog::RocketLogger::FlashLogError state;
+
+    if (m_logger->flush() !=
+        RocketLog::FlightLogger::FlightLoggerError::OK)
+    {
+        return RocketError::DeviceError;
+    }
 
     const uint32_t dataLength =
         m_loggerWriter->getChipBytesCounts();
@@ -807,6 +971,32 @@ Rocket::RocketError Rocket::readAllFlashDataThroughUART()
     return RocketError::OK;
 }
 
+//------------------------------------------------------------------------------
+// 状态指示相关
+//------------------------------------------------------------------------------
+
+bool Rocket::isAccelLaunched(){
+    if(m_rawAccel[2] >= LAUNCH_ACCEL_CRITICAL_VALUE + GRAVITY_ACCELERATION_M_S2){
+        return true;
+    }
+    return false;
+}
+
+bool Rocket::isPitchOutOfCritialPoint(){
+    if (m_eulerAngle_rad[1] <= (MATH_PI / 2) - (PARACHUTE_PITCH_CRITICAL_POINT_DEG / 180.0f * MATH_PI)){
+        return true;
+    }
+    return false;
+}
+
+bool Rocket::isLanded(){
+    if (m_baroAltitude <= ALTITUDE_BARO_LANDED_STANDARD_M){
+        return true;
+    }else{
+        return false;
+    }
+}
+
 void Rocket::igniteParachute(){
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);
     m_parachuteIgnitedTime_ms = static_cast<uint32_t>(getTimestampUs() / 1000);
@@ -822,6 +1012,18 @@ Telemetry::FlightPhase Rocket::translateLaunchFhaseIntoFlightPhase(LaunchPhase l
 
 void Rocket::receiveUARTGNSSData(uint8_t *pRxData, uint16_t rxDataLength){
     m_gnss->receiveGNSSMessageFromUART(pRxData, rxDataLength);
+}
+
+void Rocket::setSystemHealthError(SystemHealthErrorFlag flag){
+    taskENTER_CRITICAL();
+    m_systemHealthErrorFlags |= static_cast<uint32_t>(flag);
+    taskEXIT_CRITICAL();
+}
+
+void Rocket::incrementLoggerDroppedCount(){
+    taskENTER_CRITICAL();
+    ++m_loggerDroppedCount;
+    taskEXIT_CRITICAL();
 }
 
 uint64_t Rocket::getTimestampUs()

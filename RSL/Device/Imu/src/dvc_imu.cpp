@@ -4,12 +4,13 @@
 
 #define SPI_TRY_TIMES 3
 
-IMU::Vector3f IMU::solveAttitude()
+bool IMU::solveAttitude(Vector3f *vector)
 {
-    if(!readRawData()) return m_ahrs->getEulerAngle();
+    if(!readRawData()) return false;
     dataCalibration();
     m_ahrs->update(m_gyroData, m_accelData, m_magnetData);
-    return m_ahrs->getEulerAngle();
+    *vector = m_ahrs->getEulerAngle();
+    return true;
 }
 
 IMU::IMU(AHRS *ahrs) : 

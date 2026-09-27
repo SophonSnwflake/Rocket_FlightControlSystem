@@ -75,6 +75,18 @@ public:
         } data;
     };
 
+    enum class SystemHealthErrorFlag : uint32_t{
+        None = 0U,
+        ImuReadFailed = 1U << 0,
+        BarometerReadFailed = 1U << 1,
+        AhrsFailed = 1U << 2,
+        LoggerWriteFailed = 1U << 3,
+        LoggerQueueOverFlow = 1U << 4,
+        BatteryLow = 1U << 5,
+        LoggerStorageFull = 1U << 6
+    };
+
+// 类指针
 private:
     IMU *m_imu;
     GNSS *m_gnss;
@@ -89,14 +101,14 @@ private:
     Communicator *m_communicator;
     VoFa *m_vofa;
     VoltageProbe *m_voltageProbe;
+
+// 数字变量
+private:
+    // 状态指示
     LaunchPhase m_launchPhase = LaunchPhase::STANDBY;
     LaunchPhase m_lastLaunchPhase = LaunchPhase::STANDBY;
 
-    StaticQueue_t m_logQueueControlBlock;
-    uint8_t m_logQueueStorage[LOG_QUEUE_LENGTH * sizeof(LogEvent)];
-    QueueHandle_t m_logQueue;
-
-private:
+    // 时间有关变量
     uint64_t m_launchTimeus = 0;
     uint64_t m_nowTimeus = 0;
     uint64_t m_lastBuzzerChangeTimeus = 0;
@@ -104,28 +116,54 @@ private:
     uint32_t m_lastSystemTelemetryTime_ms = 0;
     uint32_t m_lastGNSSTelemetryTime_ms = 0;
     uint32_t m_lastVoltageProbeTime_ms = 0;
+    uint32_t m_lastLoggerPowerMessage_ms = 0;
+    uint32_t m_lastIMULog_us = 0;
+    uint32_t m_lastAHRSLog_us = 0;
+    uint32_t m_lastLoggerFlightEstimateTime_ms = 0;
+    uint32_t m_lastSystemHealthMessage_ms = 0;
+    uint32_t m_parachuteIgnitedTime_ms = 0;
+    uint32_t m_lastLoggerSyncTime_ms = 0;
+
+    // 判断确有关变量
     uint16_t m_pitchParachuteConfirmTimes = 0;
     uint16_t m_isAccelLaunchedConfirmTimes = 0;
-    uint16_t m_altitude_m = 0;
+    uint16_t m_isLandedConfirmTimes = 0;
+
+    // 科学变量
     uint16_t m_velocity_m_s = 0; // 天向速度，单位m/s
-    IMURawMessage m_imuMessage; 
     RSLMath::Vector3f m_rawAccel; // 顺序为:X-Y-Z, 朝箭头正方向为正。单位m/s2。包含重力加速度
     RSLMath::Vector3f m_eulerAngle_rad; // 欧拉角，单位弧度，顺序roll-pitch-yaw
-    uint32_t m_imuSequence = 0;
-    uint32_t m_logDroppedCount = 0;
-    uint32_t m_loggerErrorCount = 0;
-    uint32_t m_parachuteIgnitedTime_ms = 0;
     fp32 m_voltage = 0.0f;
     fp64 m_rawtemperature = 0.0f; // 当前温度
     fp64 m_rawPressure = 0.0f; // 当前气压
     fp64 m_refTemp = 0.0f; // 基准温度
     fp64 m_refPre = 0.0f; // 基准气压
     fp32 m_baroAltitude = 0.0f; // 气压计高度
+    uint32_t m_imuSequence = 0;
+
+    // 错误计数器
+    uint32_t m_systemHealthErrorFlags = 0U;
+    uint32_t m_loggerDroppedCount = 0;
+    uint32_t m_loggerErrorCount = 0U;
+    uint16_t m_imuErrorCount =0U;
+    uint16_t m_baroErrorCount = 0U;
+    uint16_t m_gnssErrorCount = 0U;
+    uint16_t m_flashErrorCount = 0U;
+    
+    // 布尔量
+    bool m_isAllChipErased = false; // Flash是否全片擦除
     bool m_isInitedCompleted = false;
     bool m_isParachuteIgnited = false;
     bool m_isParachuteIgnitedAndClosed = false; // 判断点火电平是否复位
     bool m_isPrintingGNSSMessage = false;
-    
+
+
+    // 队列
+    StaticQueue_t m_logQueueControlBlock;
+    uint8_t m_logQueueStorage[LOG_QUEUE_LENGTH * sizeof(LogEvent)];
+    QueueHandle_t m_logQueue;
+
+    // 缓冲区
     uint8_t m_UARTCommandRxBuffer[UART_COMMAND_RX_BUFFER_SIZE];
     volatile uint16_t m_UARTCommandRxLength = 0;
     volatile bool m_UARTCommandRxPending = false;
@@ -161,6 +199,7 @@ public:
     bool isInitCompleted() {return m_isInitedCompleted;}
     bool isAccelLaunched();
     bool isPitchOutOfCritialPoint();
+    bool isLanded();
     LaunchPhase getPhase(){return m_launchPhase;}
 
     // 执行逻辑
@@ -173,6 +212,9 @@ public:
     void voltageProbeLoop();
     void barometerLoop();
     void sendSystemTelemetryPayloadLoop();
+    void logFlightEstimateMessageLoop();
+    void logPowerMessageLoop();
+    void logSystemHealthMessageLoop();
     bool setPhaseBetweenSTANDBYandARMED(LaunchPhase launchPhase);
     void setUARTCommand(RocketCommand* command);
     void setLoRaCommand(RocketCommand* command);
@@ -202,6 +244,8 @@ private:
     void igniteParachute();
     void unIgniteParachute();
     void parachuteLoop();   
-    void sendFlightTelemetryPayloadLoop();      
+    void sendFlightTelemetryPayloadLoop();     
+    void setSystemHealthError(SystemHealthErrorFlag flag); 
+    void incrementLoggerDroppedCount();
     
 };
