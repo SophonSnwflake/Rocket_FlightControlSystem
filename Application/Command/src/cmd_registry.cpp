@@ -52,8 +52,9 @@ static const CommandNode loggerCommands[] =
     nullptr,
     0,
     0,
-    0
+    1
     }
+
 
 };
 

@@ -251,21 +251,25 @@ FlightLogger::FlightLoggerError FlightLogger::writeSystemHealth(SystemHealthMess
 
 FlightLogger::FlightLoggerError FlightLogger::writeData(ULogMessageId messageID, void *payload, uint32_t length){
     if ((payload == nullptr) || (length == 0U)) return FlightLoggerError::InvalidArgument;
-    if (length > static_cast<uint16_t>(UINT16_MAX - sizeof(uint16_t))) return FlightLoggerError::InvalidArgument;
+    constexpr uint32_t MAX_PAYLOAD_SIZE = GNSS_MESSAGE_PAYLOAD_SIZE;
+    static_assert(IMU_RAW_MESSAGE_PAYLOAD_SIZE <= MAX_PAYLOAD_SIZE &&
+                  AHRS_MESSAGE_PAYLOAD_SIZE <= MAX_PAYLOAD_SIZE &&
+                  FLIGHT_ESTIMATE_MESSAGE_PAYLOAD_SIZE <= MAX_PAYLOAD_SIZE &&
+                  FLIGHT_STATE_MESSAGE_PAYLOAD_SIZE <= MAX_PAYLOAD_SIZE &&
+                  POWER_MESSAGE_PAYLOAD_SIZE <= MAX_PAYLOAD_SIZE &&
+                  SYSTEM_HEALTH_MESSAGE_PAYLOAD_SIZE <= MAX_PAYLOAD_SIZE);
+    if (length > MAX_PAYLOAD_SIZE) return FlightLoggerError::InvalidArgument;
 
     ulog_message_data_s dataHeader{};
     dataHeader.msg_type = static_cast<uint8_t>(ULogMessageType::DATA);
     dataHeader.msg_id = static_cast<uint16_t>(messageID);
     dataHeader.msg_size = static_cast<uint16_t>(length + sizeof(dataHeader.msg_id));
-    RocketLogger::FlashLogError result = m_LogWriter->append(reinterpret_cast<uint8_t*>(&dataHeader), sizeof(dataHeader));
+    uint8_t dataBuffer[sizeof(dataHeader) + MAX_PAYLOAD_SIZE];
+    memcpy(dataBuffer, &dataHeader, sizeof(dataHeader));
+    memcpy(dataBuffer + sizeof(dataHeader), payload, length);
 
-    if (result != RocketLogger::FlashLogError::OK)
-    {
-        m_lastWriterError = result;
-        return FlightLoggerError::WriterError;
-    }
-
-    result = m_LogWriter->append(reinterpret_cast<uint8_t*>(payload), length);
+    const RocketLogger::FlashLogError result =
+        m_LogWriter->append(dataBuffer, sizeof(dataHeader) + length);
     if (result != RocketLogger::FlashLogError::OK)
     {
         m_lastWriterError = result;

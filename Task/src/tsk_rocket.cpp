@@ -72,7 +72,7 @@ Communicator communicator(&lora);
 
 BMP388 barometer(barometerHandle, barometerConfig);
 
-VoFa vofa(2, &huart1);
+VoFa vofa(1, &huart1);
 
 VoltageProbe voltageProbe(&hadc1);
 

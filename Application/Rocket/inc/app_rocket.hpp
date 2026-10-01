@@ -123,6 +123,12 @@ private:
     uint32_t m_lastSystemHealthMessage_ms = 0;
     uint32_t m_parachuteIgnitedTime_ms = 0;
     uint32_t m_lastLoggerSyncTime_ms = 0;
+    uint32_t m_lastIMULog_ARMED_us = 0;
+    uint32_t m_lastAHRSLog_ARMED_us = 0;
+    uint32_t m_lastGNSSLoggerStandbyTime_ms = 0;
+    uint32_t m_lastGNSSLoggerArmedTime_ms = 0;
+    uint32_t m_lastGNSSLoggerLandedTime_ms = 0;
+    uint32_t m_lastLandedBuzzerSwitchTime_ms = 0;
 
     // 判断确有关变量
     uint16_t m_pitchParachuteConfirmTimes = 0;
@@ -156,6 +162,7 @@ private:
     bool m_isParachuteIgnited = false;
     bool m_isParachuteIgnitedAndClosed = false; // 判断点火电平是否复位
     bool m_isPrintingGNSSMessage = false;
+    bool m_isOutputingFlashData = false;
 
 
     // 队列
@@ -194,6 +201,7 @@ public:
     RocketError initLogger();
     RocketError eraseAllChipForNewFlight();
     RocketError readAllFlashDataThroughUART();
+    RocketError readAllFlashDataThroughUARTForce();
 
     // 状态指示相关
     bool isInitCompleted() {return m_isInitedCompleted;}
@@ -206,11 +214,12 @@ public:
     void phaseSelect();
     void rocketTotalLoop();
     void imuLoop();
-    void loggerLoop();
+    void loggerWriteLoop();
     void communicationLoop();
     void GNSSLoop();
     void voltageProbeLoop();
     void barometerLoop();
+    void buzzerLoop();
     void sendSystemTelemetryPayloadLoop();
     void logFlightEstimateMessageLoop();
     void logPowerMessageLoop();
@@ -247,5 +256,7 @@ private:
     void sendFlightTelemetryPayloadLoop();     
     void setSystemHealthError(SystemHealthErrorFlag flag); 
     void incrementLoggerDroppedCount();
+    void switchBoolIsCompleted(bool tureOrFalse);
+    void switchLaunchPhase(LaunchPhase launchPhase);
     
 };

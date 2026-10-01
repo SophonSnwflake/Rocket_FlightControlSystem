@@ -119,25 +119,40 @@ RSL::Command::CommandHandlerResult handleFlashReadAll(void* context, std::size_t
     }
     auto* commandContext = static_cast<Application::Command::CommandContext*>(context);
 
-    if (!commandContext->rocket || commandContext->rocket->getPhase() != Rocket::LaunchPhase::STANDBY) {
+    if (!commandContext->rocket) {
         return RSL::Command::CommandHandlerResult::InvalidState;
     }
 
-    if (commandContext->rocket == nullptr)
-    {
-        return RSL::Command::CommandHandlerResult::InvalidState;
-    }
-    if (commandContext->source == Application::Command::CommandSource::UART){
-        printf("[command] Trying to transmit data through UART...\r\n");
-        Rocket::RocketError state;
-        state = commandContext->rocket->readAllFlashDataThroughUART();
-        if(state != Rocket::RocketError::OK){
-            printf("[command] Transmit Failed!\r\n");
-            return RSL::Command::CommandHandlerResult::Unsupported;
-        }else{
-            printf("[command] Transmit Success!\r\n");
-            return RSL::Command::CommandHandlerResult::OK;
+    if (argc == 0){
+        if (commandContext->source == Application::Command::CommandSource::UART){
+            printf("[command] Trying to transmit data through UART...\r\n");
+            Rocket::RocketError state;
+            state = commandContext->rocket->readAllFlashDataThroughUART();
+            if(state != Rocket::RocketError::OK){
+                printf("[command] Transmit Failed!\r\n");
+                return RSL::Command::CommandHandlerResult::Unsupported;
+            }else{
+                printf("[command] Transmit Success!\r\n");
+                return RSL::Command::CommandHandlerResult::OK;
+            }
         }
+    }else if(argc == 1 && std::strcmp(argv[0], "--force") == 0){
+        if (commandContext->source == Application::Command::CommandSource::UART){
+            printf("[command] Trying to transmit data through UART...\r\n");
+            Rocket::RocketError state;
+            state = commandContext->rocket->readAllFlashDataThroughUARTForce();
+            if(state != Rocket::RocketError::OK){
+                printf("[command] Transmit Failed!\r\n");
+                return RSL::Command::CommandHandlerResult::Unsupported;
+            }else{
+                printf("[command] Transmit Success!\r\n");
+                return RSL::Command::CommandHandlerResult::OK;
+            }
+        }else if(commandContext->source == Application::Command::CommandSource::LoRa){
+            printf("[command] Uncorrect communication trace\r\n");
+        }
+    }else{
+        return RSL::Command::CommandHandlerResult::InvalidState;
     }
 
     return RSL::Command::CommandHandlerResult::OK;
@@ -191,7 +206,7 @@ RSL::Command::CommandHandlerResult handleYes(void* context, std::size_t argc, co
         state = ctx->rocket->initLogger();
         if(state != Rocket::RocketError::OK){
             if (ctx->source == Application::Command::CommandSource::UART){
-                printf("Flash erase failed!\r\n");
+                printf("Logger Init failed!\r\n");
             } else if(ctx->source == Application::Command::CommandSource::LoRa){
                 ctx->rocket->loraPrintf("Flash erase failed!\r\n");
             }
@@ -199,12 +214,11 @@ RSL::Command::CommandHandlerResult handleYes(void* context, std::size_t argc, co
         }
 
         if (ctx->source == Application::Command::CommandSource::UART){
-            if (ctx->source == Application::Command::CommandSource::UART){
-                printf("Flash erase success!\r\n");
-            } else if(ctx->source == Application::Command::CommandSource::LoRa){
-                ctx->rocket->loraPrintf("Flash erase success!\r\n");
-            }
+            printf("Flash erase success!\r\n");
+        } else if(ctx->source == Application::Command::CommandSource::LoRa){
+            ctx->rocket->loraPrintf("Flash erase success!\r\n");
         }
+        
         return RSL::Command::CommandHandlerResult::OK;
 
     case PendingAction::SystemReboot:

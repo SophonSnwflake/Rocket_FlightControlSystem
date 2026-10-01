@@ -91,7 +91,7 @@ cmake --build build/Release
 #### ST-Link
 
 ```
-openocd -f interface/stlink.cfg -f target/stmf4x.cfg -c "program build/Debug/rocket_26.elf verift reset exit"
+openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c "program build/Debug/rocket_26.elf verift reset exit"
 ```
 
 ## 当前进度

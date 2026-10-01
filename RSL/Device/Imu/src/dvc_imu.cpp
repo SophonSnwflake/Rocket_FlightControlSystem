@@ -28,7 +28,9 @@ bool BMI088::init(){
     if(m_Inited == true) return true;
     m_errorCode = BMI088_NO_ERROR;
     if (selfTestAccel()){
-        initAccel();
+        if(!initAccel()){
+            return false;
+        }
     }
     else{
         handleError(BMI088_SELF_TEST_ACCEL_ERROR);
@@ -36,7 +38,9 @@ bool BMI088::init(){
     }
 
     if (selfTestGyro()){  
-        initGyro();
+        if(!initGyro()){
+            return false;
+        }
     }
     else{
         handleError(BMI088_SELF_TEST_GYRO_ERROR);
