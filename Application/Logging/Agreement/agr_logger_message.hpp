@@ -162,6 +162,17 @@ struct FlightStateMessage{
     uint16_t transition_reason;
 };
 
+enum class FlightStateTransitionReason : uint16_t
+{
+    None = 0,
+    UserCommand = 1,
+    LaunchDetected = 2,
+    PitchOverLimit = 3,
+    ParachuteMaxWaitingTimeExceeded = 4,
+    BarometerAltitudeBelowThreshold = 5,
+    LandedTimeMaxWaitingTimeExceeded = 6,
+};
+
 inline constexpr uint32_t FLIGHT_STATE_MESSAGE_PAYLOAD_SIZE = 12U;
 static_assert(
     offsetof(FlightStateMessage, transition_reason) +

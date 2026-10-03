@@ -264,6 +264,7 @@ void Rocket::phaseSelect(){
                     m_isAccelLaunchedConfirmTimes = 0;
                     m_launchTimeus = getTimestampUs();
                     switchLaunchPhase(LaunchPhase::ASCENT);
+                    handleLogFlightStateMessage(getTimestampUs(), LaunchPhase::ARMED, LaunchPhase::ASCENT, FlightStateTransitionReason::LaunchDetected);
                 }
                 break;
             }else{
@@ -281,6 +282,7 @@ void Rocket::phaseSelect(){
             }
             if (m_nowTimeus - m_launchTimeus >= PARACHUTE_MAX_WAITING_TIME * 1000000ULL){
                 switchLaunchPhase(LaunchPhase::DESCENT);
+                handleLogFlightStateMessage(getTimestampUs(), LaunchPhase::ASCENT, LaunchPhase::DESCENT, FlightStateTransitionReason::ParachuteMaxWaitingTimeExceeded);
                 break;
             }
             if (isPitchOutOfCritialPoint()){
@@ -288,6 +290,7 @@ void Rocket::phaseSelect(){
                 if(m_pitchParachuteConfirmTimes >= PARACHUTE_PITCH_CONFIRM_TIMES){
                     m_pitchParachuteConfirmTimes = 0;
                     switchLaunchPhase(LaunchPhase::DESCENT);
+                    handleLogFlightStateMessage(getTimestampUs(), LaunchPhase::ASCENT, LaunchPhase::DESCENT, FlightStateTransitionReason::PitchOverLimit);
                 }
                 break;
             }else{
@@ -303,6 +306,7 @@ void Rocket::phaseSelect(){
                     m_isLandedConfirmTimes = 0;
                     m_launchTimeus = getTimestampUs();
                     switchLaunchPhase(LaunchPhase::LANDED);
+                    handleLogFlightStateMessage(getTimestampUs(), LaunchPhase::DESCENT, LaunchPhase::LANDED, FlightStateTransitionReason::LandedTimeMaxWaitingTimeExceeded);
                 }
                 if (isLanded()){
                     m_isLandedConfirmTimes ++;
@@ -310,6 +314,7 @@ void Rocket::phaseSelect(){
                         m_isLandedConfirmTimes = 0;
                         m_launchTimeus = getTimestampUs();
                         switchLaunchPhase(LaunchPhase::LANDED);
+                        handleLogFlightStateMessage(getTimestampUs(), LaunchPhase::DESCENT, LaunchPhase::LANDED, FlightStateTransitionReason::BarometerAltitudeBelowThreshold);
                     }
                 }else{
                     m_isLandedConfirmTimes = 0;
@@ -343,7 +348,7 @@ void Rocket::sendFlightTelemetryPayloadLoop(){
 
             payload.relative_altitude_mm = static_cast<int32_t>(m_baroAltitude * 1000.0f);
 
-            payload.vertical_velocity_mm_s = static_cast<int32_t>(m_gnss->getVelocityDown() * -1000.0f);
+            payload.vertical_velocity_mm_s = static_cast<int32_t>(m_gnss->getVelocityDown() * -1.0f);
             m_communicator->sendFlightTelemetryPayload(&payload);
             break;
 
@@ -365,7 +370,7 @@ void Rocket::sendFlightTelemetryPayloadLoop(){
 
             payload.relative_altitude_mm = static_cast<int32_t>(m_baroAltitude * 1000.0f);
 
-            payload.vertical_velocity_mm_s = static_cast<int32_t>(m_velocity_m_s * 1000.0f);
+            payload.vertical_velocity_mm_s = static_cast<int32_t>(-m_velocity_mm_s);
             m_communicator->sendFlightTelemetryPayload(&payload);
             break;
     }
@@ -443,6 +448,17 @@ void Rocket::loggerWriteLoop()
 
             case LogEventType::FlightEstimate:{
                 if (m_logger->writeFlightEstimate(&event.data.flightEstimate) != RocketLog::FlightLogger::FlightLoggerError::OK){
+                    m_loggerErrorCount ++;
+                    if (m_flashErrorCount != UINT16_MAX) {
+                        ++m_flashErrorCount;
+                    }
+                    setSystemHealthError(SystemHealthErrorFlag::LoggerWriteFailed);
+                }
+                break;
+            }
+
+            case LogEventType::FlightState:{
+                if (m_logger->writeFlightState(&event.data.flightState) != RocketLog::FlightLogger::FlightLoggerError::OK){
                     m_loggerErrorCount ++;
                     if (m_flashErrorCount != UINT16_MAX) {
                         ++m_flashErrorCount;
@@ -746,7 +762,7 @@ void Rocket::imuLoop()
 void Rocket::GNSSLoop(){
     if(!m_gnss->isHasNewData()) return;
     m_gnss->handleGNSSMessageLoop();
-    m_velocity_m_s = m_gnss->getVelocityDown() * -0.001f;
+    m_velocity_mm_s = m_gnss->getVelocityDown();
     uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
     if(temTimeStamp_ms - m_lastGNSSTelemetryTime_ms >= TELEMETRY_GNSS_PERIOD_MS){
         m_lastGNSSTelemetryTime_ms = temTimeStamp_ms;
@@ -956,7 +972,6 @@ void Rocket::buzzerLoop(){
             }
         }
     }
-
 }
 
 //==============================================================================
@@ -987,7 +1002,9 @@ bool Rocket::setPhaseBetweenSTANDBYandARMED(LaunchPhase launchPhase){
     m_buzzer->handleChipping(true);
     osDelay(80);
     m_buzzer->handleChipping(false);
+    LaunchPhase previousPhase = m_launchPhase;
     switchLaunchPhase(launchPhase);
+    handleLogFlightStateMessage(getTimestampUs(), previousPhase, m_launchPhase, FlightStateTransitionReason::UserCommand);
     return true;
 }
 
@@ -1272,4 +1289,27 @@ void Rocket::switchLaunchPhase(LaunchPhase launchPhase){
         m_launchPhase = launchPhase;
     }
     taskEXIT_CRITICAL();
+}
+
+void Rocket::handleLogFlightStateMessage(uint64_t timestamp, 
+                                        LaunchPhase previousPhase, 
+                                        LaunchPhase currentPhase, 
+                                        FlightStateTransitionReason reason){
+    if(!isInitCompleted()) return;
+    if(!m_logger->isStarted()) return;
+    if(previousPhase == currentPhase) return;
+
+    LogEvent FlightStateMessageEvent{};
+
+    FlightStateMessageEvent.type = LogEventType::FlightState;
+
+    FlightStateMessageEvent.data.flightState.timestamp = timestamp;
+    FlightStateMessageEvent.data.flightState.previous_state = static_cast<uint8_t>(previousPhase);
+    FlightStateMessageEvent.data.flightState.current_state = static_cast<uint8_t>(currentPhase);
+    FlightStateMessageEvent.data.flightState.transition_reason = static_cast<uint16_t>(reason);
+
+    if (xQueueSend(m_logQueue, &FlightStateMessageEvent, 0) != pdPASS){
+        incrementLoggerDroppedCount();
+        setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
+    }                                    
 }

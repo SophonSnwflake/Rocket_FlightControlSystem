@@ -136,7 +136,7 @@ private:
     uint16_t m_isLandedConfirmTimes = 0;
 
     // 科学变量
-    uint16_t m_velocity_m_s = 0; // 天向速度，单位m/s
+    int32_t m_velocity_mm_s = 0; // 天向速度，单位mm/s
     RSLMath::Vector3f m_rawAccel; // 顺序为:X-Y-Z, 朝箭头正方向为正。单位m/s2。包含重力加速度
     RSLMath::Vector3f m_eulerAngle_rad; // 欧拉角，单位弧度，顺序roll-pitch-yaw
     fp32 m_voltage = 0.0f;
@@ -258,5 +258,6 @@ private:
     void incrementLoggerDroppedCount();
     void switchBoolIsCompleted(bool tureOrFalse);
     void switchLaunchPhase(LaunchPhase launchPhase);
+    void handleLogFlightStateMessage(uint64_t timestamp, LaunchPhase previousPhase, LaunchPhase currentPhase, FlightStateTransitionReason reason);
     
 };
