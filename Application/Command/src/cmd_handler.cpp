@@ -119,10 +119,14 @@ RSL::Command::CommandHandlerResult handleFlashReadAll(void* context, std::size_t
     }
     auto* commandContext = static_cast<Application::Command::CommandContext*>(context);
 
-    if (!commandContext->rocket) {
+    if (!commandContext || !commandContext->rocket ) {
         return RSL::Command::CommandHandlerResult::InvalidState;
     }
 
+    if (commandContext->rocket->getPhase() == Rocket::LaunchPhase::ARMED || commandContext->rocket->getPhase() == Rocket::LaunchPhase::ASCENT || commandContext->rocket->getPhase() == Rocket::LaunchPhase::DESCENT){
+        return RSL::Command::CommandHandlerResult::InvalidState;
+    }
+    
     if (argc == 0){
         if (commandContext->source == Application::Command::CommandSource::UART){
             printf("[command] Trying to transmit data through UART...\r\n");

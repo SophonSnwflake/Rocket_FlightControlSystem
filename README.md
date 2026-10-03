@@ -91,12 +91,13 @@ cmake --build build/Release
 #### ST-Link
 
 ```
-openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c "program build/Debug/rocket_26.elf verift reset exit"
+openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c "program build/Debug/rocket_26.elf verify reset exit"
 ```
 
 ## 当前进度
 
-项目目前处于软件功能集成与系统联调阶段。
+项目目前处于最终测试阶段。
+预计于Oct 3 2026进行首次发射测试，验证平台可行性。
 
 ### 已完成
 

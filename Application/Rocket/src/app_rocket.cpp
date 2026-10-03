@@ -746,6 +746,7 @@ void Rocket::imuLoop()
 void Rocket::GNSSLoop(){
     if(!m_gnss->isHasNewData()) return;
     m_gnss->handleGNSSMessageLoop();
+    m_velocity_m_s = m_gnss->getVelocityDown() * -0.001f;
     uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
     if(temTimeStamp_ms - m_lastGNSSTelemetryTime_ms >= TELEMETRY_GNSS_PERIOD_MS){
         m_lastGNSSTelemetryTime_ms = temTimeStamp_ms;
