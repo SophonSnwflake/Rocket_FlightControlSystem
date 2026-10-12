@@ -96,9 +96,7 @@ openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c "program build/Debug/r
 
 ## Current Schedule
 
-This avionics system has been tested on Oct 3 2026, using Qiong Yu Aerospace's small rocket near the Yellow River. This flight confirmed that all systems functioned properly and received flight data successfully. Flight log and related information have been uploaded to the documentation site：
-
-https://rocket26.wiki/flight_records/Oct_3_2026/
+This avionics system has been tested on Oct 3 2026, using Qiong Yu Aerospace's small rocket near the Yellow River. This flight confirmed that all systems functioned properly and received flight data successfully. Flight log and related information have been uploaded to the documentation site.
 
 ## Future Plans
 
