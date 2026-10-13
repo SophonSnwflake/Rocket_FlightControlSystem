@@ -13,7 +13,7 @@ An experimental flight control system based on STM32F411 and FreeRTOS. Integrate
 
 ## Function
 - An embedded system based on STM32F411 and FreeRTOS
-- IMU: attitude solving
+- IMU: EKF attitude solving
 - Barometer: barometer data reading and altitude solving
 - GNSS: Positioning
 - Flash: Flight recorded data writing
