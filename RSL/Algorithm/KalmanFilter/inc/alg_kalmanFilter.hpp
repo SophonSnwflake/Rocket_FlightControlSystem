@@ -73,7 +73,7 @@ public:
                 
     }
 
-    inline void update(const MeasVector &measurement)
+    inline void step(const MeasVector &measurement)
     {
         // 扩展点：预处理回调
         onPreUpdate(measurement);
@@ -109,7 +109,7 @@ public:
      */
     template <bool EnableControl = (ControlSize > 0)>
     typename std::enable_if<EnableControl, void>::type
-    update(const MeasVector &measurement, const ControlVector &control)
+    step(const MeasVector &measurement, const ControlVector &control)
     {
         // 扩展点：预处理回调
         onPreUpdate(measurement);
