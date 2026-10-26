@@ -30,9 +30,9 @@ file(GLOB_RECURSE RSL_ALGORITHM_KALMANFILTER_SOURCES
     "Algorithm/KalmanFilter/src/*.cpp"
 )
 
-file(GLOB_RECURSE RSL_ALGORITHM_INS_SOURCES
-    "Algorithm/Ins/src/*.c"
-    "Algorithm/Ins/src/*.cpp"
+file(GLOB_RECURSE RSL_ALGORITHM_INS_MECHANIZATION_SOURCES
+    "Algorithm/Ins/Mechanization/src/*.c"
+    "Algorithm/Ins/Mechanization/src/*.cpp"
 )
 
 file(GLOB_RECURSE RSL_COMMAND_SOURCES
@@ -106,12 +106,17 @@ file(GLOB_RECURSE RSL_MIDDLEWARE_COMMAND_SOURCES
     "Middleware/Command/src/*.cpp"
 )
 
+file(GLOB_RECURSE RSL_MIDDLEWARE_INS_SOURCES
+    "Middleware/Ins/src/*.c"
+    "Middleware/Ins/src/*.cpp"
+)
+
 target_sources(${PROJECT_NAME} PRIVATE
     ${RSL_ALGORITHM_AHRS_SOURCES}
     ${RSL_ALGORITHM_FILTER_SOURCES}
     ${RSL_ALGORITHM_GENERAL_SOURCES}
     ${RSL_ALGORITHM_KALMANFILTER_SOURCES}
-    ${RSL_ALGORITHM_INS_SOURCES}
+    ${RSL_ALGORITHM_INS_MECHANIZATION_SOURCES}
 
     ${RSL_DEVICE_BAROMETER_SOURCES}
     ${RSL_DEVICE_BUZZER_SOURCES}
@@ -128,6 +133,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 
     ${RSL_MIDDLEWARE_LOGGER_SOURCES}
     ${RSL_MIDDLEWARE_COMMAND_SOURCES}
+    ${RSL_MIDDLEWARE_INS_SOURCES}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -136,7 +142,9 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     Algorithm/Filter/inc
     Algorithm/General/inc
     Algorithm/KalmanFilter/inc
-    Algorithm/Ins/inc
+    Algorithm/Ins/common
+    Algorithm/Ins/Mechanization/inc
+    Algorithm/Ins/Types/inc
 
     Command/inc
 
@@ -156,6 +164,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     Driver/Uart/inc
     Middleware/Logger/inc
     Middleware/Command/inc
+    Middleware/Ins/inc
     Agreement/inc
 )
 
