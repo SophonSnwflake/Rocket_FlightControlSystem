@@ -25,6 +25,8 @@
 
 #include <Eigen/Geometry>
 #include <iostream>
+#include <cmath>
+#include <limits>
 
 using Eigen::Matrix3d;
 using Eigen::Quaterniond;

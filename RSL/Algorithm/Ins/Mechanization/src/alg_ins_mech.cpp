@@ -15,6 +15,7 @@
 #include "alg_ins_mech_para.hpp"
 #include "earth.h"
 #include "rotation.h"
+#include <algorithm>
 
 static const fp64 INSMECH_MAX_TIME_DT_S = 0.1; // 最大时间间隔
 static const fp64 INSMECH_MIN_TIME_DT_S = 0.0001; // 最小时间间隔
@@ -236,5 +237,153 @@ bool INSMechanization::updatePosition(const NavState &navState_previous, NavStat
     if(!std::isfinite(newHeight)) return false;
     if(!newPosition.allFinite()) return false;
     navState_current.position    = newPosition;
+    return true;
+}
+
+
+/**
+ * @brief 使用相邻两帧 IMU 角增量预测当前历元姿态。
+ *
+ * 根据前后历元的位置和速度重建中间时刻导航状态，计算地球自转角速度
+ * 与导航系运输角速度，并补偿导航坐标系在当前采样周期内的旋转。同时
+ * 使用相邻两帧角增量进行二阶圆锥误差补偿，最终递推机体系到 NED
+ * 导航系的姿态四元数。
+ *
+ * @param navState_previous 前一历元导航状态，提供位置、速度和姿态。
+ * @param navState_current  当前历元导航状态；调用前位置和速度应已更新，
+ *                          成功时本函数写入其 attitude。
+ * @param imuData_previous  前一相邻采样周期的 IMU 角增量和时间间隔。
+ * @param imuData_current   当前采样周期的 IMU 角增量和时间间隔。
+ * @param insState          当前 INS 工作状态，用于检查调用状态是否合法。
+ *
+ * @return true  姿态预测成功，navState_current.attitude 为单位四元数。
+ * @return false 输入状态、采样周期、地理参数、中间四元数或最终姿态无效；
+ *               此时不会修改 navState_current.attitude。
+ *
+ * @note 两帧 IMU 数据必须时间连续且采样间隔近似相等；dtheta 的单位为
+ *       rad，姿态四元数表示从机体系到 NED 导航系的旋转。
+ */
+bool INSMechanization::updateAttitude(const NavState &navState_previous, NavState &navState_current, const IMUData &imuData_previous, const IMUData &imuData_current, const INSState &insState){
+// qbn = qnn @ qbn(k-1) @ qbb
+
+    static constexpr fp64 MIN_QUATERNION_NORM = 1e-8;
+    static constexpr fp64 MIN_COS_LATITUDE = 1e-8;
+    static constexpr fp64 MIN_RADIUS_HEIGHT = 1e-8;
+
+    if(insState != INSState::WaitingForInitialization && insState != INSState::Running) return false;
+    if(!std::isfinite(imuData_previous.dt)) return false;
+    if(!std::isfinite(imuData_current.dt)) return false;
+    if(imuData_previous.dt < INSMECH_MIN_TIME_DT_S || imuData_previous.dt > INSMECH_MAX_TIME_DT_S) return false;
+    if(imuData_current.dt < INSMECH_MIN_TIME_DT_S || imuData_current.dt > INSMECH_MAX_TIME_DT_S) return false;
+    if(!imuData_previous.dtheta.allFinite()) return false;
+    if(!imuData_current.dtheta.allFinite()) return false;
+    if(!navState_previous.position.allFinite()) return false;
+    if(!navState_current.position.allFinite()) return false;
+    if(!navState_previous.velocity.allFinite()) return false;
+    if(!navState_current.velocity.allFinite()) return false;
+    if(!navState_previous.attitude.coeffs().allFinite()) return false;
+    if(std::abs(navState_previous.position[0]) >= M_PI / 2) return false;
+    if(std::abs(navState_current.position[0]) >= M_PI / 2) return false;
+
+    const fp64 previousAttitudeNorm = navState_previous.attitude.norm();
+    if(!std::isfinite(previousAttitudeNorm) || previousAttitudeNorm < MIN_QUATERNION_NORM) return false;
+
+    Eigen::Vector3d mid_velocity; // 中间时刻速度
+    Eigen::Vector3d mid_position; // 中间时刻位置
+    Eigen::Quaterniond qne_pre; // 导航系到地球系的转换四元数，pre时刻
+    Eigen::Quaterniond qne_mid; // 导航系到地球系的转换四元数，中间时刻
+    Eigen::Quaterniond qne_cur; // 导航系到地球系的转换四元数, current时刻
+    Eigen::Quaterniond qee; // 一个采样周期内地球自转导致的姿态四元数变化
+    Eigen::Quaterniond qbb; // 自身转动
+    Eigen::Quaterniond qnn; // 导航系转动
+    Eigen::Vector3d temp1;
+
+    // 重新计算中间时刻的速度和位置
+    mid_velocity = (navState_previous.velocity + navState_current.velocity) / 2;
+    if(!mid_velocity.allFinite()) return false;
+
+    qne_pre   = Earth::qne(navState_previous.position);
+    qne_cur   = Earth::qne(navState_current.position);
+    if(!qne_pre.coeffs().allFinite()) return false;
+    if(!qne_cur.coeffs().allFinite()) return false;
+
+    const fp64 qnePreNorm = qne_pre.norm();
+    const fp64 qneCurNorm = qne_cur.norm();
+    if(!std::isfinite(qnePreNorm) || qnePreNorm < MIN_QUATERNION_NORM) return false;
+    if(!std::isfinite(qneCurNorm) || qneCurNorm < MIN_QUATERNION_NORM) return false;
+
+    qee       = Rotation::rotvec2quaternion(Eigen::Vector3d(0, 0, -WGS84_WIE * imuData_current.dt));
+    if(!qee.coeffs().allFinite()) return false;
+
+    Eigen::Quaterniond qne_delta = qne_pre.inverse() * qee.inverse() * qne_cur;
+    const fp64 qneDeltaNorm = qne_delta.norm();
+    if(!qne_delta.coeffs().allFinite()) return false;
+    if(!std::isfinite(qneDeltaNorm) || qneDeltaNorm < MIN_QUATERNION_NORM) return false;
+    qne_delta.normalize();
+
+    temp1 = Rotation::quaternion2vector(qne_delta);
+    if(!temp1.allFinite()) return false;
+
+    qee       = Rotation::rotvec2quaternion(Eigen::Vector3d(0, 0, -WGS84_WIE * imuData_current.dt / 2));
+    const Eigen::Quaterniond qnn_half = Rotation::rotvec2quaternion(temp1 / 2);
+    if(!qee.coeffs().allFinite()) return false;
+    if(!qnn_half.coeffs().allFinite()) return false;
+
+    qne_mid = qee * qne_pre * qnn_half;
+    const fp64 qneMidNorm = qne_mid.norm();
+    if(!qne_mid.coeffs().allFinite()) return false;
+    if(!std::isfinite(qneMidNorm) || qneMidNorm < MIN_QUATERNION_NORM) return false;
+    qne_mid.normalize();
+
+    const fp64 midHeight = (navState_current.position[2] + navState_previous.position[2]) / 2;
+    if(!std::isfinite(midHeight)) return false;
+
+    mid_position = Earth::blh(qne_mid, midHeight);
+    if(!mid_position.allFinite()) return false;
+    if(std::abs(mid_position[0]) >= M_PI / 2) return false;
+
+    // 重新计算中间时刻地理参数
+    Eigen::Vector2d rmrn;
+    Eigen::Vector3d wie_n, wen_n;
+    rmrn = Earth::meridianPrimeVerticalRadius(mid_position[0]);
+    if(!rmrn.allFinite()) return false;
+
+    const fp64 cosLatitude = std::cos(mid_position[0]);
+    const fp64 rmHeight = rmrn[0] + mid_position[2];
+    const fp64 rnHeight = rmrn[1] + mid_position[2];
+    if(!std::isfinite(cosLatitude) || std::abs(cosLatitude) < MIN_COS_LATITUDE) return false;
+    if(!std::isfinite(rmHeight) || rmHeight < MIN_RADIUS_HEIGHT) return false;
+    if(!std::isfinite(rnHeight) || rnHeight < MIN_RADIUS_HEIGHT) return false;
+
+    wie_n << WGS84_WIE * cosLatitude, 0, -WGS84_WIE * std::sin(mid_position[0]);
+    wen_n << mid_velocity[1] / rnHeight, -mid_velocity[0] / rmHeight,
+        -mid_velocity[1] * std::tan(mid_position[0]) / rnHeight;
+    if(!wie_n.allFinite()) return false;
+    if(!wen_n.allFinite()) return false;
+
+    // 计算n系的旋转四元数 k-1时刻到k时刻变换
+    temp1 = -(wie_n + wen_n) * imuData_current.dt;
+    if(!temp1.allFinite()) return false;
+
+    qnn   = Rotation::rotvec2quaternion(temp1);
+    if(!qnn.coeffs().allFinite()) return false;
+
+    if((std::abs(imuData_current.dt - imuData_previous.dt) / std::max(imuData_current.dt, imuData_previous.dt)) > 0.1) return false;
+
+    // 计算b系旋转四元数 补偿二阶圆锥误差(基于相同采样间隔推导)
+    temp1 = imuData_current.dtheta + imuData_previous.dtheta.cross(imuData_current.dtheta) / 12;
+    if(!temp1.allFinite()) return false;
+
+    qbb   = Rotation::rotvec2quaternion(temp1);
+    if(!qbb.coeffs().allFinite()) return false;
+
+    // 姿态更新完成
+    Eigen::Quaterniond newAttitude = qnn * navState_previous.attitude * qbb;
+    const fp64 newAttitudeNorm = newAttitude.norm();
+    if(!newAttitude.coeffs().allFinite()) return false;
+    if(!std::isfinite(newAttitudeNorm) || newAttitudeNorm < MIN_QUATERNION_NORM) return false;
+
+    newAttitude.normalize();
+    navState_current.attitude = newAttitude;
     return true;
 }
