@@ -72,10 +72,22 @@ public:
         return matrix2euler(quaternion.toRotationMatrix());
     }
 
-    static Quaterniond rotvec2quaternion(const Vector3d &rotvec) {
-        double angle = rotvec.norm();
-        Vector3d vec = rotvec.normalized();
-        return Quaterniond(Eigen::AngleAxisd(angle, vec));
+    static Quaterniond rotvec2quaternion(const Vector3d &rotvec)
+    {
+        const double angle = rotvec.norm();
+
+        if(!std::isfinite(angle)) {
+            return Quaterniond(
+                std::numeric_limits<double>::quiet_NaN(),
+                0, 0, 0);
+        }
+
+        if(angle < 1e-12) {
+            return Quaterniond::Identity();
+        }
+
+        return Quaterniond(
+            Eigen::AngleAxisd(angle, rotvec / angle));
     }
 
     static Vector3d quaternion2vector(const Quaterniond &quaternion) {

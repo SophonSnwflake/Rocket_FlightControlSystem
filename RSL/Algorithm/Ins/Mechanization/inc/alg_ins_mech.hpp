@@ -29,6 +29,6 @@ public:
     bool insMech(const NavState &navState_previous, NavState &navState_current,const IMUData &imuData_previous, const IMUData &imuData_current, const INSState &insState);
 
     bool updateVelocity(const NavState &navState_previous, NavState &navState_current, const IMUData &imuData_previous, const IMUData &imuData_current, const INSState &insState);
-    bool updatePosition(const NavState &navState_previous, NavState &navState_current, const IMUData &imuData_previous, const IMUData &imuData_current, const INSState &insState);
+    bool updatePosition(const NavState &navState_previous, NavState &navState_current, const IMUData &imuData_current, const INSState &insState);
     bool updateAttitude(const NavState &navState_previous, NavState &navState_current, const IMUData &imuData_previous, const IMUData &imuData_current, const INSState &insState);
 };

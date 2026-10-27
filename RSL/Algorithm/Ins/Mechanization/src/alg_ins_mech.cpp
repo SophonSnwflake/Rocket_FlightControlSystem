@@ -16,12 +16,15 @@
 #include "earth.h"
 #include "rotation.h"
 
+static const fp64 INSMECH_MAX_TIME_DT_S = 0.1; // 最大时间间隔
+static const fp64 INSMECH_MIN_TIME_DT_S = 0.0001; // 最小时间间隔
+
 bool INSMechanization::insMech(const NavState &navState_previous, NavState &navState_current,const IMUData &imuData_previous, const IMUData &imuData_current, const INSState &insState){ 
     if(insState == INSState::Running){
         if(!updateVelocity(navState_previous, navState_current, imuData_previous, imuData_current, insState)){
             return false;
         }
-        if(!updatePosition(navState_previous, navState_current, imuData_previous, imuData_current, insState)){
+        if(!updatePosition(navState_previous, navState_current,imuData_current, insState)){
             return false;
         }
     }
@@ -45,15 +48,13 @@ bool INSMechanization::insMech(const NavState &navState_previous, NavState &navS
 bool INSMechanization::updateVelocity(const NavState &navState_previous, NavState &navState_current,const IMUData &imuData_previous, const IMUData &imuData_current, const INSState &insState){
 // 当前速度 = 上一时刻速度 + 比力更新 + 场力更新
 
-    static const double MAX_TIME_DT_S = 0.1; // 最大时间间隔
-    static const double MIN_TIME_DT_S = 0.0001; // 最小时间间隔
-
+    // 检查合法性
     if(!std::isfinite(imuData_current.dt))return false;
     if(!std::isfinite(imuData_previous.dt))return false;
-    if(imuData_current.dt > MAX_TIME_DT_S)return false;
-    if(imuData_current.dt < MIN_TIME_DT_S)return false;
-    if(imuData_previous.dt > MAX_TIME_DT_S)return false;
-    if(imuData_previous.dt < MIN_TIME_DT_S)return false;
+    if(imuData_current.dt > INSMECH_MAX_TIME_DT_S)return false;
+    if(imuData_current.dt < INSMECH_MIN_TIME_DT_S)return false;
+    if(imuData_previous.dt > INSMECH_MAX_TIME_DT_S)return false;
+    if(imuData_previous.dt < INSMECH_MIN_TIME_DT_S)return false;
     if(!imuData_current.dtheta.allFinite())return false;
     if(!imuData_current.dvelocity.allFinite())return false;
     if(!imuData_previous.dtheta.allFinite())return false;
@@ -138,5 +139,102 @@ bool INSMechanization::updateVelocity(const NavState &navState_previous, NavStat
 
     // 最终速度更新
     navState_current.velocity = navState_previous.velocity + d_vfn + d_vgn;
+    return true;
+}
+
+
+/**
+ * @brief 使用中点积分方法完成 NED 导航系下的位置更新。
+ *
+ * 根据前一历元位置以及前后历元速度的平均值，计算中间时刻的位置、
+ * 地球曲率半径、地球自转角速度和导航系运输角速度，随后通过导航系
+ * 相对于地心地固系的完整周期旋转更新当前经纬度，并单独积分高度。
+ *
+ * @param navState_previous 前一历元导航状态；位置采用 BLH 格式，
+ *                          依次为纬度(rad)、经度(rad)和高度(m)。
+ * @param navState_current  当前历元导航状态。调用前其 velocity 应已经
+ *                          完成更新；成功时本函数写入其 position。
+ * @param imuData_current   当前 IMU 历元数据，本函数使用其中的时间间隔 dt。
+ * @param insState          当前 INS 工作状态；当前实现中暂未直接使用。
+ *
+ * @return true  位置更新成功，navState_current.position 有效。
+ * @return false 时间间隔、输入状态、中间计算结果或最终位置无效；
+ *               此时不会修改 navState_current.position。
+ *
+ * @note 输入和输出速度均采用 NED，垂直速度向下为正，因此高度更新时
+ *       需要减去垂直速度在当前采样周期内的积分量。
+ */
+bool INSMechanization::updatePosition(const NavState &navState_previous, NavState &navState_current, const IMUData &imuData_current, const INSState &insState){
+    // 检查合法性
+    if(imuData_current.dt > INSMECH_MAX_TIME_DT_S)return false;
+    if(imuData_current.dt < INSMECH_MIN_TIME_DT_S)return false;
+    if(!std::isfinite(imuData_current.dt)) return false;
+    if(!navState_previous.position.allFinite()) return false;
+    if(!navState_previous.velocity.allFinite()) return false;
+    if(!navState_current.velocity.allFinite()) return false;
+    if(std::abs(navState_previous.position[0]) > M_PI / 2) return false;
+
+    // 计算纬度是否超小
+    const fp64 previousCosLatitude =
+    std::cos(navState_previous.position[0]);
+    if(std::abs(previousCosLatitude) < 1e-8) return false;
+    
+    Eigen::Vector3d mid_velocity; // 中间速度
+    Eigen::Vector3d mid_position; // 中间位置
+    Eigen::Vector2d rmrn; // 子午圈半径和卯酉圈半径
+    Eigen::Vector3d wie_n; // 地球自转角速度在导航系下的表示
+    Eigen::Vector3d wen_n; // 由于机体位置变化导致的导航系旋转角速度在导航系下的表示
+    Eigen::Quaterniond qnn; // 导航系旋转四元数
+    Eigen::Quaterniond qee; // 地心地固系旋转四元数
+    Eigen::Quaterniond qne; // 导航系到地心地固系旋转四元数
+
+    // 计算中间时刻速度
+    mid_velocity = (navState_previous.velocity + navState_current.velocity) / 2;
+    if(!mid_velocity.allFinite()) return false;
+
+    // 计算中间时刻位置
+    mid_position = navState_previous.position + Earth::DRi(navState_previous.position) * mid_velocity * imuData_current.dt / 2; 
+    if(!mid_position.allFinite()) return false;
+    if(std::abs(mid_position[0]) >= M_PI / 2) return false;
+
+    // 计算中间时刻地理参数
+    rmrn = Earth::meridianPrimeVerticalRadius(mid_position[0]);
+    const fp64 cosLatitude = std::cos(mid_position[0]);
+    const fp64 rmHeight = rmrn[0] + mid_position[2];
+    const fp64 rnHeight = rmrn[1] + mid_position[2];
+
+    if(!std::isfinite(cosLatitude))return false;
+    if(!std::isfinite(rmHeight))return false;
+    if(!std::isfinite(rnHeight))return false;
+    if(std::abs(cosLatitude) < 1e-8) return false;
+    if(rmHeight < 1e-8) return false;
+    if(rnHeight < 1e-8) return false;
+
+    
+    wie_n << WGS84_WIE * cosLatitude, 0, -WGS84_WIE * sin(mid_position[0]);
+    wen_n << mid_velocity[1] / rnHeight, -mid_velocity[0] / rmHeight,
+        -mid_velocity[1] * tan(mid_position[0]) / rnHeight;
+
+    // 计算中间时刻导航系旋转四元数
+    qnn = Rotation::rotvec2quaternion((wie_n + wen_n) * imuData_current.dt);
+    qee = Rotation::rotvec2quaternion(Eigen::Vector3d(0, 0, -WGS84_WIE * imuData_current.dt));
+
+    // 最终更新
+    qne = Earth::qne(navState_previous.position);
+    qne = qee * qne * qnn;
+
+    // 检查合法性
+    const fp64 qneNorm = qne.norm();
+    if(!qne.coeffs().allFinite()) return false;
+    if(!std::isfinite(qneNorm) || qneNorm < 1e-8) return false;
+
+    qne.normalize();
+
+    const fp64 newHeight = navState_previous.position[2] - mid_velocity[2] * imuData_current.dt;
+
+    const Eigen::Vector3d newPosition = Earth::blh(qne, newHeight);
+    if(!std::isfinite(newHeight)) return false;
+    if(!newPosition.allFinite()) return false;
+    navState_current.position    = newPosition;
     return true;
 }
