@@ -1,5 +1,6 @@
 #include "dvc_gnss.hpp"
 #include "drv_time.h"
+#include <cstring>
 #include <stdio.h>
 
 

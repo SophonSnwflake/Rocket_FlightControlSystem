@@ -1,6 +1,7 @@
 #include "cmsis_os.h"
 #include "drv_time.h"
 #include "alg_ahrs.hpp"
+#include "math_const.h"
 #include <algorithm>
 
 /******************************************************************************
@@ -13,12 +14,12 @@
  */
 void AHRS::reset()
 {
-    m_gyro                  = 0;
-    m_accel                 = 0;
-    m_magnet                = 0;
-    m_eulerAngle            = 0;
-    m_motionAccelBodyFrame  = 0;
-    m_motionAccelEarthFrame = 0;
+    m_gyro.setZero();
+    m_accel.setZero();
+    m_magnet.setZero();
+    m_eulerAngle.setZero();
+    m_motionAccelBodyFrame.setZero();
+    m_motionAccelEarthFrame.setZero();
     m_quaternion[0]         = 1.0f;
     m_quaternion[1]         = 0.0f;
     m_quaternion[2]         = 0.0f;
@@ -137,19 +138,19 @@ void AHRS::convertQuaternionToEulerAngle()
     // 计算欧拉角 (roll-pitch-yaw)
 
     // Roll (x轴旋转) - 绕X轴旋转的角度
-    m_eulerAngle.x = atan2f(2.0f * (q0 * q1 + q2 * q3), 1.0f - 2.0f * (q1 * q1 + q2 * q2));
+    m_eulerAngle.x() = atan2f(2.0f * (q0 * q1 + q2 * q3), 1.0f - 2.0f * (q1 * q1 + q2 * q2));
 
     // Pitch (y轴旋转) - 绕Y轴旋转的角度
     // 处理万向锁问题，确保结果在[-π/2, π/2]范围内
     fp32 sinp = 2.0f * (q0 * q2 - q3 * q1);
     if (fabsf(sinp) >= 1) {
-        m_eulerAngle.y = copysignf(MATH_PI / 2, sinp); // 使用copysignf确保正确的符号
+        m_eulerAngle.y() = copysignf(MATH_PI / 2, sinp); // 使用copysignf确保正确的符号
     } else {
-        m_eulerAngle.y = asinf(sinp);
+        m_eulerAngle.y() = asinf(sinp);
     }
 
     // Yaw (z轴旋转) - 绕Z轴旋转的角度
-    m_eulerAngle.z = atan2f(2.0f * (q0 * q3 + q1 * q2), 1.0f - 2.0f * (q2 * q2 + q3 * q3));
+    m_eulerAngle.z() = atan2f(2.0f * (q0 * q3 + q1 * q2), 1.0f - 2.0f * (q2 * q2 + q3 * q3));
 }
 
 /**
@@ -160,31 +161,31 @@ void AHRS::convertQuaternionToEulerAngle()
  */
 bool AHRS::initQuaternion()
 {
-    const fp32 accelNormSq = m_accel.x * m_accel.x + m_accel.y * m_accel.y + m_accel.z * m_accel.z;
+    const fp32 accelNormSq = m_accel.x() * m_accel.x() + m_accel.y() * m_accel.y() + m_accel.z() * m_accel.z();
     constexpr fp32 MIN_ACCEL_NORM = 0.01f;
     constexpr fp32 MIN_ACCEL_NORM_SQ = MIN_ACCEL_NORM * MIN_ACCEL_NORM;
     if (!std::isfinite(accelNormSq) || accelNormSq <= MIN_ACCEL_NORM_SQ) return false;
 
     // 归一化加速度计数据, 得到重力方向单位向量
-    fp32 recipNorm = RSLMath::invSqrt(accelNormSq);
-    fp32 ax        = m_accel.x * recipNorm;
-    fp32 ay        = m_accel.y * recipNorm;
-    fp32 az        = m_accel.z * recipNorm;
+    fp32 recipNorm = 1.0f / std::sqrt(accelNormSq);
+    fp32 ax        = m_accel.x() * recipNorm;
+    fp32 ay        = m_accel.y() * recipNorm;
+    fp32 az        = m_accel.z() * recipNorm;
 
-    bool hasMag = m_magnet.x != 0.0f || m_magnet.y != 0.0f || m_magnet.z != 0.0f;
+    bool hasMag = m_magnet.x() != 0.0f || m_magnet.y() != 0.0f || m_magnet.z() != 0.0f;
 
     if (hasMag) {
         // 九轴初始化: TRIAD方法 + Shepperd四元数提取
-        recipNorm = RSLMath::invSqrt(m_magnet.x * m_magnet.x + m_magnet.y * m_magnet.y + m_magnet.z * m_magnet.z);
-        fp32 mx   = m_magnet.x * recipNorm;
-        fp32 my   = m_magnet.y * recipNorm;
-        fp32 mz   = m_magnet.z * recipNorm;
+        recipNorm = 1.0f / std::sqrt(m_magnet.x() * m_magnet.x() + m_magnet.y() * m_magnet.y() + m_magnet.z() * m_magnet.z());
+        fp32 mx   = m_magnet.x() * recipNorm;
+        fp32 my   = m_magnet.y() * recipNorm;
+        fp32 mz   = m_magnet.z() * recipNorm;
 
         // East = mag × accel
         fp32 ex   = my * az - mz * ay;
         fp32 ey   = mz * ax - mx * az;
         fp32 ez   = mx * ay - my * ax;
-        recipNorm = RSLMath::invSqrt(ex * ex + ey * ey + ez * ez);
+        recipNorm = 1.0f / std::sqrt(ex * ex + ey * ey + ez * ez);
         ex *= recipNorm;
         ey *= recipNorm;
         ez *= recipNorm;
@@ -245,10 +246,10 @@ bool AHRS::initQuaternion()
     }
 
     // 归一化四元数
-    recipNorm = RSLMath::invSqrt(m_quaternion[0] * m_quaternion[0] +
-                                  m_quaternion[1] * m_quaternion[1] +
-                                  m_quaternion[2] * m_quaternion[2] +
-                                  m_quaternion[3] * m_quaternion[3]);
+    recipNorm = 1.0f / std::sqrt(m_quaternion[0] * m_quaternion[0] +
+                                 m_quaternion[1] * m_quaternion[1] +
+                                 m_quaternion[2] * m_quaternion[2] +
+                                 m_quaternion[3] * m_quaternion[3]);
     m_quaternion[0] *= recipNorm;
     m_quaternion[1] *= recipNorm;
     m_quaternion[2] *= recipNorm;
@@ -277,22 +278,22 @@ void AHRS::calculateMotionAccel()
 
     // 从加速度计数据中减去重力分量, 得到机体坐标系下的运动加速度
     constexpr fp32 GRAVITY   = 9.8f;
-    m_motionAccelBodyFrame.x = m_accel.x - gx * GRAVITY;
-    m_motionAccelBodyFrame.y = m_accel.y - gy * GRAVITY;
-    m_motionAccelBodyFrame.z = m_accel.z - gz * GRAVITY;
+    m_motionAccelBodyFrame.x() = m_accel.x() - gx * GRAVITY;
+    m_motionAccelBodyFrame.y() = m_accel.y() - gy * GRAVITY;
+    m_motionAccelBodyFrame.z() = m_accel.z() - gz * GRAVITY;
 
     // 将机体坐标系下的运动加速度转换到大地坐标系
-    m_motionAccelEarthFrame.x = (q0 * q0 + q1 * q1 - q2 * q2 - q3 * q3) * m_motionAccelBodyFrame.x +
-                                2.0f * (q1 * q2 - q0 * q3) * m_motionAccelBodyFrame.y +
-                                2.0f * (q1 * q3 + q0 * q2) * m_motionAccelBodyFrame.z;
+    m_motionAccelEarthFrame.x() = (q0 * q0 + q1 * q1 - q2 * q2 - q3 * q3) * m_motionAccelBodyFrame.x() +
+                                2.0f * (q1 * q2 - q0 * q3) * m_motionAccelBodyFrame.y() +
+                                2.0f * (q1 * q3 + q0 * q2) * m_motionAccelBodyFrame.z();
 
-    m_motionAccelEarthFrame.y = 2.0f * (q1 * q2 + q0 * q3) * m_motionAccelBodyFrame.x +
-                                (q0 * q0 - q1 * q1 + q2 * q2 - q3 * q3) * m_motionAccelBodyFrame.y +
-                                2.0f * (q2 * q3 - q0 * q1) * m_motionAccelBodyFrame.z;
+    m_motionAccelEarthFrame.y() = 2.0f * (q1 * q2 + q0 * q3) * m_motionAccelBodyFrame.x() +
+                                (q0 * q0 - q1 * q1 + q2 * q2 - q3 * q3) * m_motionAccelBodyFrame.y() +
+                                2.0f * (q2 * q3 - q0 * q1) * m_motionAccelBodyFrame.z();
 
-    m_motionAccelEarthFrame.z = 2.0f * (q1 * q3 - q0 * q2) * m_motionAccelBodyFrame.x +
-                                2.0f * (q2 * q3 + q0 * q1) * m_motionAccelBodyFrame.y +
-                                (q0 * q0 - q1 * q1 - q2 * q2 + q3 * q3) * m_motionAccelBodyFrame.z;
+    m_motionAccelEarthFrame.z() = 2.0f * (q1 * q3 - q0 * q2) * m_motionAccelBodyFrame.x() +
+                                2.0f * (q2 * q3 + q0 * q1) * m_motionAccelBodyFrame.y() +
+                                (q0 * q0 - q1 * q1 - q2 * q2 + q3 * q3) * m_motionAccelBodyFrame.z();
 }
 
 
@@ -344,9 +345,9 @@ void QuaternionEKF::reset()
 {
     AHRS::reset();
     m_kalmanFilter.reset();
-    m_accelFiltered     = 0;
-    m_gyroBias          = 0;
-    m_orientationCosine = 0;
+    m_accelFiltered.setZero();
+    m_gyroBias.setZero();
+    m_orientationCosine.setZero();
     m_convergeFlag      = false;
     m_stableFlag        = false;
     m_errorCount        = 0;
@@ -397,7 +398,7 @@ void QuaternionEKF::dataProcess()
         m_deltaTime = DWT_GetDeltaTime(&m_lastUpdateTimestamp);
     }
 
-    ekfProcess(m_gyro.x, m_gyro.y, m_gyro.z, m_accel.x, m_accel.y, m_accel.z);
+    ekfProcess(m_gyro.x(), m_gyro.y(), m_gyro.z(), m_accel.x(), m_accel.y(), m_accel.z());
 }
 
 /**
@@ -415,9 +416,9 @@ void QuaternionEKF::ekfProcess(fp32 gx, fp32 gy, fp32 gz, fp32 ax, fp32 ay, fp32
     const fp32 dt = m_deltaTime;
 
     // 减去零偏得到校正后角速度
-    fp32 wx = gx - m_gyroBias.x;
-    fp32 wy = gy - m_gyroBias.y;
-    fp32 wz = gz - m_gyroBias.z;
+    fp32 wx = gx - m_gyroBias.x();
+    fp32 wy = gy - m_gyroBias.y();
+    fp32 wz = gz - m_gyroBias.z();
 
     fp32 halfwxdt = 0.5f * wx * dt;
     fp32 halfwydt = 0.5f * wy * dt;
@@ -442,14 +443,14 @@ void QuaternionEKF::ekfProcess(fp32 gx, fp32 gy, fp32 gz, fp32 ax, fp32 ay, fp32
     // 加速度一阶低通滤波
     fp32 lpfDenom = dt + m_accLpfCoef;
     if (lpfDenom > 1e-12f) {
-        m_accelFiltered.x = m_accelFiltered.x * m_accLpfCoef / lpfDenom + ax * dt / lpfDenom;
-        m_accelFiltered.y = m_accelFiltered.y * m_accLpfCoef / lpfDenom + ay * dt / lpfDenom;
-        m_accelFiltered.z = m_accelFiltered.z * m_accLpfCoef / lpfDenom + az * dt / lpfDenom;
+        m_accelFiltered.x() = m_accelFiltered.x() * m_accLpfCoef / lpfDenom + ax * dt / lpfDenom;
+        m_accelFiltered.y() = m_accelFiltered.y() * m_accLpfCoef / lpfDenom + ay * dt / lpfDenom;
+        m_accelFiltered.z() = m_accelFiltered.z() * m_accLpfCoef / lpfDenom + az * dt / lpfDenom;
     }
 
-    fp32 accelNormSq  = m_accelFiltered.x * m_accelFiltered.x +
-                            m_accelFiltered.y * m_accelFiltered.y +
-                            m_accelFiltered.z * m_accelFiltered.z;
+    fp32 accelNormSq  = m_accelFiltered.x() * m_accelFiltered.x() +
+                            m_accelFiltered.y() * m_accelFiltered.y() +
+                            m_accelFiltered.z() * m_accelFiltered.z();
                             
     constexpr fp32 MIN_ACCEL_NORM = 0.01f;
     constexpr fp32 MIN_ACCEL_NORM_SQ = MIN_ACCEL_NORM * MIN_ACCEL_NORM;
@@ -460,11 +461,11 @@ void QuaternionEKF::ekfProcess(fp32 gx, fp32 gy, fp32 gz, fp32 ax, fp32 ay, fp32
 
     if (accelValid){
         // 归一化加速度作为量测
-        const fp32 accelInvNorm = RSLMath::invSqrt(accelNormSq);
+        const fp32 accelInvNorm = 1.0f / std::sqrt(accelNormSq);
 
-        measurement << m_accelFiltered.x * accelInvNorm,
-                        m_accelFiltered.y * accelInvNorm,
-                        m_accelFiltered.z * accelInvNorm;
+        measurement << m_accelFiltered.x() * accelInvNorm,
+                        m_accelFiltered.y() * accelInvNorm,
+                        m_accelFiltered.z() * accelInvNorm;
 
         m_accelNorm = 1.0f / accelInvNorm;
 
@@ -473,7 +474,7 @@ void QuaternionEKF::ekfProcess(fp32 gx, fp32 gy, fp32 gz, fp32 ax, fp32 ay, fp32
     }
 
     // 计算载体运动状态(用于发散保护)
-    m_gyroNorm  = 1.0f / RSLMath::invSqrt(wx * wx + wy * wy + wz * wz);
+    m_gyroNorm  = std::sqrt(wx * wx + wy * wy + wz * wz);
     
     if (m_gyroNorm < 0.3f && m_accelNorm > 9.3f && m_accelNorm < 10.3f) {
         m_stableFlag = true;
@@ -504,7 +505,7 @@ void QuaternionEKF::ekfProcess(fp32 gx, fp32 gy, fp32 gz, fp32 ax, fp32 ay, fp32
     M::StateVector xpred = m_kalmanFilter.getPredictedState();
     fp32 q0 = xpred(0), q1 = xpred(1), q2 = xpred(2), q3 = xpred(3);
 
-    fp32 qInvNorm = RSLMath::invSqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
+    fp32 qInvNorm = 1.0f / std::sqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
     q0 *= qInvNorm;
     q1 *= qInvNorm;
     q2 *= qInvNorm;
@@ -604,8 +605,8 @@ void QuaternionEKF::ekfProcess(fp32 gx, fp32 gy, fp32 gz, fp32 ax, fp32 ay, fp32
 
         if (m_convergeFlag) {
             fp32 biasLimit = 1e-2f * dt;
-            RSLMath::constrain(delta(4), biasLimit);
-            RSLMath::constrain(delta(5), biasLimit);
+            delta(4) = std::clamp(delta(4), -biasLimit, biasLimit);
+            delta(5) = std::clamp(delta(5), -biasLimit, biasLimit);
         }
 
         delta(3) = 0.0f;
@@ -625,15 +626,15 @@ void QuaternionEKF::ekfProcess(fp32 gx, fp32 gy, fp32 gz, fp32 ax, fp32 ay, fp32
     q3      = xhat(3);
     fp32 bx = xhat(4), by = xhat(5);
 
-    qInvNorm = RSLMath::invSqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
+    qInvNorm = 1.0f / std::sqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
     q0 *= qInvNorm;
     q1 *= qInvNorm;
     q2 *= qInvNorm;
     q3 *= qInvNorm;
 
-    m_gyroBias.x = bx;
-    m_gyroBias.y = by;
-    m_gyroBias.z = 0.0f;
+    m_gyroBias.x() = bx;
+    m_gyroBias.y() = by;
+    m_gyroBias.z() = 0.0f;
 
     m_quaternion[0] = q0;
     m_quaternion[1] = q1;
@@ -647,6 +648,6 @@ void QuaternionEKF::ekfProcess(fp32 gx, fp32 gy, fp32 gz, fp32 ax, fp32 ay, fp32
     m_kalmanFilter.setState(xhat);
 }
 
-RSLMath::Vector3f QuaternionEKF::getGyroBias(){
+Eigen::Vector3f QuaternionEKF::getGyroBias(){
     return m_gyroBias;
 }

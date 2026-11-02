@@ -1,4 +1,5 @@
 #include "app_logger.hpp"
+#include <cstring>
 
 namespace RocketLog  
 {             

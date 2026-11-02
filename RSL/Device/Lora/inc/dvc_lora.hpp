@@ -1,7 +1,6 @@
 #pragma once
 
 #include "RSL_common.h"
-#include "alg_general.hpp"
 #include "cmsis_os.h"
 #include "drv_spi.h"
 #include "def_sx1268.h"

@@ -585,9 +585,9 @@ void Rocket::imuLoop()
         m_imuErrorCount ++;
         return;
     }
-    // const RSLMath::Vector3f accel = m_imu->getAccelRawData();
+    // const Eigen::Vector3f accel = m_imu->getAccelRawData();
 
-    // RSLMath::Vector3f gyroBias = m_imu->getGyroBias();
+    // Eigen::Vector3f gyroBias = m_imu->getGyroBias();
     // m_vofa->setChannel(0, accel[2]);
     // m_vofa->setChannel(4, m_eulerAngle_rad[4]);
     // m_vofa->setChannel(5, m_eulerAngle_rad[5]);
@@ -604,10 +604,10 @@ void Rocket::imuLoop()
             if (!m_logger->isStarted() || !m_isAllChipErased){
                 break;
             }
-            const RSLMath::Vector3f accel =
+            const Eigen::Vector3f accel =
                 m_imu->getAccelRawData();
 
-            const RSLMath::Vector3f gyro =
+            const Eigen::Vector3f gyro =
                 m_imu->getGyroRawData();
 
             uint32_t temTimeStamp_imuLog_us;
@@ -662,7 +662,7 @@ void Rocket::imuLoop()
             AHRSevent.data.ahrs.gyroBias[1] = m_imu->getGyroBias()[1] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
             AHRSevent.data.ahrs.gyroBias[2] = m_imu->getGyroBias()[2] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
 
-            const fp32* quaternionFP32 = m_imu->m_ahrs->getQuaternion();
+            const fp32* quaternionFP32 = m_imu->getQuaternion();
             for (int i = 0; i < 4; ++i){
                 AHRSevent.data.ahrs.quaternion[i] = static_cast<int16_t>(quaternionFP32[i] * LOGGER_QUATERNION_SCALE_FACTOR);
             }
@@ -676,10 +676,10 @@ void Rocket::imuLoop()
 
         case LaunchPhase::ASCENT:
         case LaunchPhase::DESCENT:{
-            const RSLMath::Vector3f accel =
+            const Eigen::Vector3f accel =
                 m_imu->getAccelRawData();
 
-            const RSLMath::Vector3f gyro =
+            const Eigen::Vector3f gyro =
                 m_imu->getGyroRawData();
 
             uint32_t temTimeStamp_imuLog_us;
@@ -734,7 +734,7 @@ void Rocket::imuLoop()
             AHRSevent.data.ahrs.gyroBias[1] = m_imu->getGyroBias()[1] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
             AHRSevent.data.ahrs.gyroBias[2] = m_imu->getGyroBias()[2] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
 
-            const fp32* quaternionFP32 = m_imu->m_ahrs->getQuaternion();
+            const fp32* quaternionFP32 = m_imu->getQuaternion();
             for (int i = 0; i < 4; ++i){
                 AHRSevent.data.ahrs.quaternion[i] = static_cast<int16_t>(quaternionFP32[i] * LOGGER_QUATERNION_SCALE_FACTOR);
             }

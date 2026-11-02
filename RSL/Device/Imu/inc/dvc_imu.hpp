@@ -13,8 +13,8 @@
  */
 #pragma once    
 
+#include "Eigen/Core"
 #include "RSL_common.h"
-#include "alg_general.hpp"
 #include "cmsis_os.h"
 #include "stm32f411xe.h"
 #include "alg_ahrs.hpp"
@@ -24,18 +24,16 @@
 #define SpiLockTimeoutMs 5
 class IMU
 {
-// protected:
-//仅供调试
-public:
-    using Vector3f = RSLMath::Vector3f;
-    using Matrix33f = RSLMath::Matrix33f;   
+protected:
+    using Vector3f = Eigen::Vector3f;
+    using Matrix33f = Eigen::Matrix3f;   
     AHRS *m_ahrs; // 指向AHRS对象的指针
-    Vector3f m_gyroRawData; // 原始陀螺仪数据    // 顺序为:X-Y-Z，使用右手定则，拇指朝向箭头，四指指向方向为正
-    Vector3f m_accelRawData; // 原始加速度计数据 // 顺序为:X-Y-Z, 朝箭头正方向为正。单位m/s2。包含重力加速度
-    Vector3f m_magnetRawData; // 原始磁力计数据
-    Vector3f m_gyroData;      // 陀螺仪数据(校准后传入AHRS)
-    Vector3f m_accelData;     // 加速度计数据(校准后传入AHRS)
-    Vector3f m_magnetData;    // 磁力计数据(校准后传入AHRS)
+    Vector3f m_gyroRawData = Vector3f::Zero(); // 原始陀螺仪数据    // 顺序为:X-Y-Z，使用右手定则，拇指朝向箭头，四指指向方向为正
+    Vector3f m_accelRawData = Vector3f::Zero(); // 原始加速度计数据 // 顺序为:X-Y-Z, 朝箭头正方向为正。单位m/s2。包含重力加速度
+    Vector3f m_magnetRawData = Vector3f::Zero(); // 原始磁力计数据
+    Vector3f m_gyroData = Vector3f::Zero();      // 陀螺仪数据(校准后传入AHRS)
+    Vector3f m_accelData = Vector3f::Zero();     // 加速度计数据(校准后传入AHRS)
+    Vector3f m_magnetData = Vector3f::Zero();    // 磁力计数据(校准后传入AHRS)
     // 常量定义
     static constexpr fp32 ACCEL_SEN = BMI088_ACCEL_12G_SEN;
     static constexpr fp32 GYRO_SEN  = BMI088_GYRO_2000_SEN;
@@ -51,15 +49,13 @@ public:
     Vector3f getAccelRawData(){return m_accelRawData;}
     Vector3f getMagnetRawData(){return m_magnetRawData;}
     Vector3f getGyroBias();
+    const fp32 *getQuaternion(){return m_ahrs->getQuaternion();};
+    virtual bool readRawData() = 0;
 
 protected:
-
     IMU(AHRS *ahrs);
-    virtual bool readRawData() = 0;
     virtual void dataCalibration() = 0;
 };
-
-
 
 class BMI088 : public IMU
 {
@@ -100,10 +96,10 @@ public:
     };
 
     struct CalibrationInfo{
-        Vector3f gyroOffset;
-        Vector3f accelOffset;
-        Vector3f magnetOffset;
-        Matrix33f installSpinMatrix;
+        Vector3f gyroOffset = Vector3f::Zero();
+        Vector3f accelOffset = Vector3f::Zero();
+        Vector3f magnetOffset = Vector3f::Zero();
+        Matrix33f installSpinMatrix = Matrix33f::Zero();
     };
 
 private:

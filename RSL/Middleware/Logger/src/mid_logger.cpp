@@ -1,4 +1,6 @@
 #include "mid_logger.hpp"
+#include <cstring>
+#include <cmath>
 
 namespace RocketLog
 {

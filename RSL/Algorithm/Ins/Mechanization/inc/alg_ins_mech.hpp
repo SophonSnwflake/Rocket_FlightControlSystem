@@ -18,7 +18,6 @@
 #include <Eigen/Dense>
 
 #include "RSL_common.h"
-#include "alg_general.hpp"
 #include "alg_ins_types.hpp"
 
 class INSMechanization {
@@ -31,4 +30,6 @@ public:
     bool updateVelocity(const NavState &navState_previous, NavState &navState_current, const IMUData &imuData_previous, const IMUData &imuData_current, const INSState &insState);
     bool updatePosition(const NavState &navState_previous, NavState &navState_current, const IMUData &imuData_current, const INSState &insState);
     bool updateAttitude(const NavState &navState_previous, NavState &navState_current, const IMUData &imuData_previous, const IMUData &imuData_current, const INSState &insState);
+
+    bool convertIMUrawDataToIncrement();
 };

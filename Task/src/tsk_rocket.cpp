@@ -10,16 +10,20 @@
 #include "app_logger.hpp"
 #include "dvc_vofa.hpp"
 #include "usart.h"
+#include <Eigen/Geometry>
 
-using Vector3f = RSLMath::Vector3f;
-using Matrix33f = RSLMath::Matrix33f; 
+using Vector3f = Eigen::Vector3f;
+using Matrix33f = Eigen::Matrix3f; 
 
 // 初始化IMU
 BMI088::CalibrationInfo cali = {
-    {0.0f, 0.0f, 0.0f}, // gyroOffset
-    {0.0f, 0.0f, 0.0f}, // accelOffset
-    {0.0f, 0.0f, 0.0f}, // magnetOffset
-    {RSLMath::Matrix33f::ROTATION, -MATH_PI / 2.0f, {0.0f, 1.0f, 0.0f}}
+    {0.0f, 0.0f, 0.0f},
+    {0.0f, 0.0f, 0.0f},
+    {0.0f, 0.0f, 0.0f},
+    Eigen::AngleAxisf(
+        -MATH_PI / 2.0f,
+        Eigen::Vector3f::UnitY()
+    ).toRotationMatrix()
 };
 
 QuaternionEKF myEKF(0.0f, 10.0f,0.001f, 1e6f, 1.0f, 0.0f, true, 1e-8f);

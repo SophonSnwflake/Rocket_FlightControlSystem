@@ -13,8 +13,8 @@ bool IMU::solveAttitude(Vector3f *vector)
     return true;
 }
 
-IMU::IMU(AHRS *ahrs) : 
-    m_ahrs(ahrs), m_gyroRawData(), m_accelRawData(), m_magnetRawData() {}
+IMU::IMU(AHRS *ahrs) :
+    m_ahrs(ahrs) {}
 
 BMI088::BMI088(AHRS *ahrs, SPIConfig accelSPIconfig,SPIConfig gyroSPIconfig,CalibrationInfo calibrationInfo, ErrorCallback errorCallback) :
     IMU(ahrs), m_accelSPIConfig(accelSPIconfig),m_gyroSPIConfig(gyroSPIconfig),m_calibrationInfo(calibrationInfo), m_errorCallback(errorCallback)
@@ -379,7 +379,7 @@ bool BMI088::selfTestGyro(){
     return true;
 }
 
-RSLMath::Vector3f IMU::getGyroBias(){
+Eigen::Vector3f IMU::getGyroBias(){
     return m_ahrs->getGyroBias();
 }
 

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "RSL_common.h"
-#include "alg_general.hpp"
 #include "cmsis_os.h"
 #include "stm32f411xe.h"
 #include "cmsis_os2.h"

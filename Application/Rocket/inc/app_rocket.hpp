@@ -1,6 +1,5 @@
 #pragma once
 #include "RSL_common.h"
-#include "alg_general.hpp"
 #include "FreeRTOS.h"
 #include "app_command.hpp"
 #include "math_const.h"
@@ -24,6 +23,7 @@
 #include "dvc_voltageProbe.hpp"
 #include "queue.h"
 #include <cstdint>
+#include "Eigen/Core"
 
 class RocketCommand; 
 
@@ -137,8 +137,8 @@ private:
 
     // 科学变量
     int32_t m_velocity_mm_s = 0; // 天向速度，单位mm/s
-    RSLMath::Vector3f m_rawAccel; // 顺序为:X-Y-Z, 朝箭头正方向为正。单位m/s2。包含重力加速度
-    RSLMath::Vector3f m_eulerAngle_rad; // 欧拉角，单位弧度，顺序roll-pitch-yaw
+    Eigen::Vector3f m_rawAccel = Eigen::Vector3f::Zero(); // 顺序为:X-Y-Z, 朝箭头正方向为正。单位m/s2。包含重力加速度
+    Eigen::Vector3f m_eulerAngle_rad = Eigen::Vector3f::Zero(); // 欧拉角，单位弧度，顺序roll-pitch-yaw
     fp32 m_voltage = 0.0f;
     fp64 m_rawtemperature = 0.0f; // 当前温度
     fp64 m_rawPressure = 0.0f; // 当前气压

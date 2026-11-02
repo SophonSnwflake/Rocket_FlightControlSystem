@@ -1,5 +1,6 @@
 #include "app_communication.hpp"
 #include "agr_telemetry_protocal.hpp"
+#include <cstring>
 
 
 Communicator::Communicator(LoRa *lora) :

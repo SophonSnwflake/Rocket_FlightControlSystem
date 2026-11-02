@@ -15,7 +15,6 @@
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 #include "RSL_common.h"
-#include "alg_general.hpp"
 
 enum class INSState {
     WaitingForInitialization, // 等待初始化
