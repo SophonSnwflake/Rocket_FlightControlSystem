@@ -24,10 +24,23 @@
 #define SpiLockTimeoutMs 5
 class IMU
 {
+public:
+    // 标准IMU帧
+    struct IMUSample{
+        uint32_t timestampCycles = 0U; // 时间戳，单位微秒
+        uint32_t sequence = 0U;
+
+        // 传感器坐标系，已换算物理单位，但未进行零偏和安装旋转补偿
+        Eigen::Vector3f gyroRaw = Eigen::Vector3f::Zero(); // rad/s
+        Eigen::Vector3f accelRaw = Eigen::Vector3f::Zero(); // m/s^2
+
+        // 机体坐标系，已经过标定和安装旋转
+        Eigen::Vector3f angularRateBody = Eigen::Vector3f::Zero(); // rad/s
+        Eigen::Vector3f specificForceBody = Eigen::Vector3f::Zero(); // m/s^2
+    };
 protected:
     using Vector3f = Eigen::Vector3f;
     using Matrix33f = Eigen::Matrix3f;   
-    AHRS *m_ahrs; // 指向AHRS对象的指针
     Vector3f m_gyroRawData = Vector3f::Zero(); // 原始陀螺仪数据    // 顺序为:X-Y-Z，使用右手定则，拇指朝向箭头，四指指向方向为正
     Vector3f m_accelRawData = Vector3f::Zero(); // 原始加速度计数据 // 顺序为:X-Y-Z, 朝箭头正方向为正。单位m/s2。包含重力加速度
     Vector3f m_magnetRawData = Vector3f::Zero(); // 原始磁力计数据
@@ -39,21 +52,20 @@ protected:
     static constexpr fp32 GYRO_SEN  = BMI088_GYRO_2000_SEN;
 
     bool m_Inited = false;
+    uint32_t m_sequence = 0U;
 
 public:
     virtual ~IMU() = default;
     virtual bool init() = 0;
-    bool solveAttitude(Vector3f *vector);
+    bool readSample(IMUSample &sample);
     bool isInited() {return m_Inited;}
     Vector3f getGyroRawData(){return m_gyroRawData;}
     Vector3f getAccelRawData(){return m_accelRawData;}
     Vector3f getMagnetRawData(){return m_magnetRawData;}
-    Vector3f getGyroBias();
-    const fp32 *getQuaternion(){return m_ahrs->getQuaternion();};
     virtual bool readRawData() = 0;
 
 protected:
-    IMU(AHRS *ahrs);
+    IMU() = default;
     virtual void dataCalibration() = 0;
 };
 
@@ -146,13 +158,11 @@ private:
 
 
 public:
-    BMI088(AHRS *ahrs, SPIConfig accelSPIconfig,SPIConfig gyroSPIconfig,CalibrationInfo calibrationInfo, ErrorCallback errorCallback);
+    BMI088(SPIConfig accelSPIconfig,SPIConfig gyroSPIconfig,CalibrationInfo calibrationInfo, ErrorCallback errorCallback);
     bool init() override;
     uint32_t getBusTimeoutCount() {return m_busTimeoutCount;}
 
 protected:
-
-
     bool readRawData() override;
     void dataCalibration() override;
     bool selfTestAccel();

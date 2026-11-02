@@ -89,6 +89,7 @@ public:
 // 类指针
 private:
     IMU *m_imu;
+    AHRS *m_ahrs;
     GNSS *m_gnss;
     W25Q128 *m_flash;
     SX1268 *m_lora;
@@ -107,6 +108,9 @@ private:
     // 状态指示
     LaunchPhase m_launchPhase = LaunchPhase::STANDBY;
     LaunchPhase m_lastLaunchPhase = LaunchPhase::STANDBY;
+
+    IMU::IMUSample m_previousIMUSample{};
+    IMU::IMUSample m_currentIMUSample{};
 
     // 时间有关变量
     uint64_t m_launchTimeus = 0;
@@ -163,7 +167,7 @@ private:
     bool m_isParachuteIgnitedAndClosed = false; // 判断点火电平是否复位
     bool m_isPrintingGNSSMessage = false;
     bool m_isOutputingFlashData = false;
-
+    bool m_hasPreviousIMUSample = false;
 
     // 队列
     StaticQueue_t m_logQueueControlBlock;
@@ -181,6 +185,7 @@ private:
 
 public:
     Rocket(IMU *imu, 
+           AHRS *m_ahrs,
            GNSS *gnss, 
            W25Q128 *flash, 
            SX1268 *lora, 
@@ -214,6 +219,7 @@ public:
     void phaseSelect();
     void rocketTotalLoop();
     void imuLoop();
+    void AHRSLoop();
     void loggerWriteLoop();
     void communicationLoop();
     void GNSSLoop();
@@ -258,6 +264,15 @@ private:
     void incrementLoggerDroppedCount();
     void switchBoolIsCompleted(bool tureOrFalse);
     void switchLaunchPhase(LaunchPhase launchPhase);
+    void handleLogIMUMessage(uint64_t timestamp,
+                             uint32_t sequence,
+                             const Eigen::Vector3f &accel,
+                             const Eigen::Vector3f &gyro);
+    void handleLogAHRSMessage(uint64_t timestamp);
+    void handleLogGNSSMessage(uint64_t timestamp);
+    void handleLogFlightEstimateMessage(uint64_t timestamp, fp32 barometerAltitude);
     void handleLogFlightStateMessage(uint64_t timestamp, LaunchPhase previousPhase, LaunchPhase currentPhase, FlightStateTransitionReason reason);
+    void handleLogPowerMessage(uint64_t timestamp, fp32 batteryVoltage);
+    void handleLogSystemHealthMessage(uint64_t timestamp, uint32_t errorFlags);
     
 };

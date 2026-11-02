@@ -4,20 +4,23 @@
 
 #define SPI_TRY_TIMES 3
 
-bool IMU::solveAttitude(Vector3f *vector)
-{
+bool IMU::readSample(IMUSample &sample){
+    const uint32_t startTime = DWT_GetTimestamp();
     if(!readRawData()) return false;
     dataCalibration();
-    m_ahrs->update(m_gyroData, m_accelData, m_magnetData);
-    *vector = m_ahrs->getEulerAngle();
+    const uint32_t endTime = DWT_GetTimestamp();
+
+    sample.timestampCycles = startTime + static_cast<uint32_t>(endTime - startTime) / 2U;
+    sample.sequence += m_sequence;
+    sample.gyroRaw = m_gyroRawData;    
+    sample.accelRaw = m_accelRawData;
+    sample.angularRateBody = m_gyroData;
+    sample.specificForceBody = m_accelData;
     return true;
 }
 
-IMU::IMU(AHRS *ahrs) :
-    m_ahrs(ahrs) {}
-
-BMI088::BMI088(AHRS *ahrs, SPIConfig accelSPIconfig,SPIConfig gyroSPIconfig,CalibrationInfo calibrationInfo, ErrorCallback errorCallback) :
-    IMU(ahrs), m_accelSPIConfig(accelSPIconfig),m_gyroSPIConfig(gyroSPIconfig),m_calibrationInfo(calibrationInfo), m_errorCallback(errorCallback)
+BMI088::BMI088(SPIConfig accelSPIconfig,SPIConfig gyroSPIconfig,CalibrationInfo calibrationInfo, ErrorCallback errorCallback) :
+    IMU(), m_accelSPIConfig(accelSPIconfig),m_gyroSPIConfig(gyroSPIconfig),m_calibrationInfo(calibrationInfo), m_errorCallback(errorCallback)
 {
     m_errorCode = BMI088_NO_ERROR;
     m_Inited = false;
@@ -378,11 +381,6 @@ bool BMI088::selfTestGyro(){
 
     return true;
 }
-
-Eigen::Vector3f IMU::getGyroBias(){
-    return m_ahrs->getGyroBias();
-}
-
 
 inline bool BMI088::readSingleReg(const SPIConfig &SPIconfig, uint8_t reg, uint8_t &prxData){
     reg |= 0x80;

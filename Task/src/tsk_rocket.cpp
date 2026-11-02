@@ -28,8 +28,7 @@ BMI088::CalibrationInfo cali = {
 
 QuaternionEKF myEKF(0.0f, 10.0f,0.001f, 1e6f, 1.0f, 0.0f, true, 1e-8f);
 
-BMI088 imu(&myEKF,
-           {&hspi1, GPIOB, GPIO_PIN_12},
+BMI088 imu({&hspi1, GPIOB, GPIO_PIN_12},
            {&hspi1, GPIOB, GPIO_PIN_10},
            cali,
            nullptr 
@@ -80,7 +79,7 @@ VoFa vofa(1, &huart1);
 
 VoltageProbe voltageProbe(&hadc1);
 
-Rocket rocket(&imu, &gnss, &flash, &lora, &barometer, &buzzer, &logger, &loggerWriter, nullptr, nullptr, &communicator, &vofa, &voltageProbe);
+Rocket rocket(&imu, &myEKF, &gnss, &flash, &lora, &barometer, &buzzer, &logger, &loggerWriter, nullptr, nullptr, &communicator, &vofa, &voltageProbe);
 
 RocketCommand uartCommand(rocket, Application::Command::CommandSource::UART);
 

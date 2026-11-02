@@ -37,7 +37,8 @@ static const char* resultName(Flash::Result r)
 extern volatile uint16_t g_last_size;
 extern volatile uint32_t g_callback_count;
 
-Rocket::Rocket(IMU *imu, 
+Rocket::Rocket(IMU *imu,
+            AHRS *ahrs,
             GNSS *gnss, 
             W25Q128 *flash, 
             SX1268 *lora, 
@@ -51,6 +52,7 @@ Rocket::Rocket(IMU *imu,
             VoFa *vofa,
             VoltageProbe *voltageProbe):
     m_imu(imu),
+    m_ahrs(ahrs),
     m_gnss(gnss),
     m_flash(flash),
     m_lora(lora),
@@ -581,17 +583,17 @@ void Rocket::parachuteLoop(){
 
 void Rocket::imuLoop()
 {
-    if(m_imu->solveAttitude(&m_eulerAngle_rad) != true){
+    if(m_imu->readSample(m_currentIMUSample) != true){
+        setSystemHealthError(SystemHealthErrorFlag::ImuReadFailed);
         m_imuErrorCount ++;
         return;
     }
-    // const Eigen::Vector3f accel = m_imu->getAccelRawData();
-
-    // Eigen::Vector3f gyroBias = m_imu->getGyroBias();
-    // m_vofa->setChannel(0, accel[2]);
-    // m_vofa->setChannel(4, m_eulerAngle_rad[4]);
-    // m_vofa->setChannel(5, m_eulerAngle_rad[5]);
-
+    AHRSLoop();
+    if (!m_hasPreviousIMUSample) {
+        m_previousIMUSample = m_currentIMUSample;
+        m_hasPreviousIMUSample = true;
+        return;
+    }
     m_imuSequence ++;
     m_rawAccel = m_imu->getAccelRawData();
     switch (m_launchPhase)
@@ -617,36 +619,7 @@ void Rocket::imuLoop()
             }
             m_lastIMULog_ARMED_us = temTimeStamp_imuLog_us;
 
-            LogEvent IMUevent{};
-
-            IMUevent.type = LogEventType::IMU;
-
-            IMUevent.data.imu.timestamp = getTimestampUs();
-            IMUevent.data.imu.sequence  = m_imuSequence;
-
-            IMUevent.data.imu.accel_raw[0] =
-                static_cast<int16_t>(accel[0] * LOGGER_IMU_SCALE_FACTOR);
-
-            IMUevent.data.imu.accel_raw[1] =
-                static_cast<int16_t>(accel[1] * LOGGER_IMU_SCALE_FACTOR);
-
-            IMUevent.data.imu.accel_raw[2] =
-                static_cast<int16_t>(accel[2] * LOGGER_IMU_SCALE_FACTOR);
-
-            IMUevent.data.imu.gyro_raw[0] =
-                static_cast<int16_t>(gyro[0] * LOGGER_IMU_SCALE_FACTOR);
-
-            IMUevent.data.imu.gyro_raw[1] =
-                static_cast<int16_t>(gyro[1] * LOGGER_IMU_SCALE_FACTOR);
-
-            IMUevent.data.imu.gyro_raw[2] =
-                static_cast<int16_t>(gyro[2] * LOGGER_IMU_SCALE_FACTOR);
-
-            if (xQueueSend( m_logQueue, &IMUevent, 0) != pdPASS)
-            {
-                incrementLoggerDroppedCount();
-                setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
-            }
+            handleLogIMUMessage(getTimestampUs(), m_imuSequence, accel, gyro);
 
             uint32_t temTimeStamp_ahrsLog_us;
             temTimeStamp_ahrsLog_us = getTimestampUs();
@@ -655,22 +628,7 @@ void Rocket::imuLoop()
             }
             m_lastAHRSLog_ARMED_us = temTimeStamp_ahrsLog_us;
 
-            LogEvent AHRSevent{};
-            AHRSevent.type = LogEventType::AHRS;
-            AHRSevent.data.ahrs.timestamp = getTimestampUs();
-            AHRSevent.data.ahrs.gyroBias[0] = m_imu->getGyroBias()[0] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
-            AHRSevent.data.ahrs.gyroBias[1] = m_imu->getGyroBias()[1] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
-            AHRSevent.data.ahrs.gyroBias[2] = m_imu->getGyroBias()[2] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
-
-            const fp32* quaternionFP32 = m_imu->getQuaternion();
-            for (int i = 0; i < 4; ++i){
-                AHRSevent.data.ahrs.quaternion[i] = static_cast<int16_t>(quaternionFP32[i] * LOGGER_QUATERNION_SCALE_FACTOR);
-            }
-            if (xQueueSend( m_logQueue, &AHRSevent, 0) != pdPASS)
-            {
-                incrementLoggerDroppedCount();
-                setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
-            }
+            handleLogAHRSMessage(getTimestampUs());
             break;
         }
 
@@ -689,36 +647,7 @@ void Rocket::imuLoop()
             }
             m_lastIMULog_us = temTimeStamp_imuLog_us;
 
-            LogEvent IMUevent{};
-
-            IMUevent.type = LogEventType::IMU;
-
-            IMUevent.data.imu.timestamp = getTimestampUs();
-            IMUevent.data.imu.sequence  = m_imuSequence;
-
-            IMUevent.data.imu.accel_raw[0] =
-                static_cast<int16_t>(accel[0] * LOGGER_IMU_SCALE_FACTOR);
-
-            IMUevent.data.imu.accel_raw[1] =
-                static_cast<int16_t>(accel[1] * LOGGER_IMU_SCALE_FACTOR);
-
-            IMUevent.data.imu.accel_raw[2] =
-                static_cast<int16_t>(accel[2] * LOGGER_IMU_SCALE_FACTOR);
-
-            IMUevent.data.imu.gyro_raw[0] =
-                static_cast<int16_t>(gyro[0] * LOGGER_IMU_SCALE_FACTOR);
-
-            IMUevent.data.imu.gyro_raw[1] =
-                static_cast<int16_t>(gyro[1] * LOGGER_IMU_SCALE_FACTOR);
-
-            IMUevent.data.imu.gyro_raw[2] =
-                static_cast<int16_t>(gyro[2] * LOGGER_IMU_SCALE_FACTOR);
-
-            if (xQueueSend( m_logQueue, &IMUevent, 0) != pdPASS)
-            {
-                incrementLoggerDroppedCount();
-                setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
-            }
+            handleLogIMUMessage(getTimestampUs(), m_imuSequence, accel, gyro);
 
             uint32_t temTimeStamp_ahrsLog_us;
             temTimeStamp_ahrsLog_us = getTimestampUs();
@@ -727,22 +656,7 @@ void Rocket::imuLoop()
             }
             m_lastAHRSLog_us = temTimeStamp_ahrsLog_us;
 
-            LogEvent AHRSevent{};
-            AHRSevent.type = LogEventType::AHRS;
-            AHRSevent.data.ahrs.timestamp = getTimestampUs();
-            AHRSevent.data.ahrs.gyroBias[0] = m_imu->getGyroBias()[0] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
-            AHRSevent.data.ahrs.gyroBias[1] = m_imu->getGyroBias()[1] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
-            AHRSevent.data.ahrs.gyroBias[2] = m_imu->getGyroBias()[2] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
-
-            const fp32* quaternionFP32 = m_imu->getQuaternion();
-            for (int i = 0; i < 4; ++i){
-                AHRSevent.data.ahrs.quaternion[i] = static_cast<int16_t>(quaternionFP32[i] * LOGGER_QUATERNION_SCALE_FACTOR);
-            }
-            if (xQueueSend( m_logQueue, &AHRSevent, 0) != pdPASS)
-            {
-                incrementLoggerDroppedCount();
-                setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
-            }
+            handleLogAHRSMessage(getTimestampUs());
             break;
         }
 
@@ -757,6 +671,26 @@ void Rocket::imuLoop()
         }
     }
     return;
+}
+
+void Rocket::AHRSLoop(){
+    if (m_ahrs == nullptr ||
+        !m_currentIMUSample.angularRateBody.allFinite() ||
+        !m_currentIMUSample.specificForceBody.allFinite()){
+        setSystemHealthError(SystemHealthErrorFlag::AhrsFailed);
+        return;
+    }
+
+    const Eigen::Vector3f &eulerAngle =
+        m_ahrs->update(m_currentIMUSample.angularRateBody,
+                       m_currentIMUSample.specificForceBody);
+
+    if (!eulerAngle.allFinite()){
+        setSystemHealthError(SystemHealthErrorFlag::AhrsFailed);
+        return;
+    }
+
+    m_eulerAngle_rad = eulerAngle;
 }
 
 void Rocket::GNSSLoop(){
@@ -812,27 +746,7 @@ void Rocket::GNSSLoop(){
         }
     }
     if (!m_logger->isStarted()) return;
-    LogEvent event{};
-    event.type = LogEventType::GNSS;
-    event.data.gnss.timestamp = getTimestampUs();
-    event.data.gnss.iTOW_ms = m_gnss->getITOW();
-    event.data.gnss.latitude_deg_e7 = m_gnss->getLatitude();
-    event.data.gnss.longitude_deg_e7 = m_gnss->getLongitude();
-    event.data.gnss.altitude_msl_mm = m_gnss->getAltitude();
-    event.data.gnss.velocity_north_mm_s = m_gnss->getVelocityNorth();
-    event.data.gnss.velocity_east_mm_s = m_gnss->getVelocityEast();
-    event.data.gnss.velocity_down_mm_s = m_gnss->getVelocityDown();
-    event.data.gnss.h_accuracy_mm = m_gnss->getHAccuracy();
-    event.data.gnss.v_accuracy_mm = m_gnss->getVAccuracy();
-    event.data.gnss.speed_accuracy_mm_s = m_gnss->getSpeedAccuracy();
-    event.data.gnss.valid_flags = m_gnss->getValid();
-    event.data.gnss.fix_type = m_gnss->getFixType();
-    event.data.gnss.num_satellites = m_gnss->getNumSatellites();
-
-    if (xQueueSend( m_logQueue, &event, 0) != pdPASS){
-        incrementLoggerDroppedCount();
-        setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
-    }
+    handleLogGNSSMessage(getTimestampUs());
 }
 
 void Rocket::sendSystemTelemetryPayloadLoop(){
@@ -879,16 +793,7 @@ void Rocket::logFlightEstimateMessageLoop(){
             }
             m_lastLoggerFlightEstimateTime_ms = temTimeStamp_ms;
 
-            LogEvent FlightEstimateMessage{};
-
-            FlightEstimateMessage.type = LogEventType::FlightEstimate;
-
-            FlightEstimateMessage.data.flightEstimate.timestamp = getTimestampUs();
-            FlightEstimateMessage.data.flightEstimate.barometer_altitude_m = m_baroAltitude;
-
-            if (xQueueSend(m_logQueue, &FlightEstimateMessage, 0) != pdPASS){
-                incrementLoggerDroppedCount();
-            }
+            handleLogFlightEstimateMessage(getTimestampUs(), m_baroAltitude);
         }
     }
 }
@@ -902,16 +807,7 @@ void Rocket::logPowerMessageLoop(){
     }
     m_lastLoggerPowerMessage_ms = temTimeStamp_ms;
 
-    LogEvent PowerMessageMessage{};
-
-    PowerMessageMessage.type = LogEventType::Power;
-    PowerMessageMessage.data.power.timestamp = getTimestampUs();
-    PowerMessageMessage.data.power.battery_voltage_mv = m_voltageProbe->readVoltage() * 1000.0f;
-
-    if (xQueueSend(m_logQueue, &PowerMessageMessage, 0) != pdPASS){
-        incrementLoggerDroppedCount();
-        setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
-    }
+    handleLogPowerMessage(getTimestampUs(), m_voltageProbe->readVoltage());
 }
 
 void Rocket::logSystemHealthMessageLoop(){
@@ -933,23 +829,7 @@ void Rocket::logSystemHealthMessageLoop(){
     errorFlags = m_systemHealthErrorFlags;
     taskEXIT_CRITICAL();
 
-    LogEvent SystemHealthMessage{};
-
-    SystemHealthMessage.type = LogEventType::SystemHealth;
-
-    SystemHealthMessage.data.systemHealth.timestamp = getTimestampUs();
-    SystemHealthMessage.data.systemHealth.error_flags = errorFlags;
-    SystemHealthMessage.data.systemHealth.baro_error_count = m_baroErrorCount;
-    SystemHealthMessage.data.systemHealth.flash_error_count = m_flashErrorCount;
-    SystemHealthMessage.data.systemHealth.gnss_error_count = m_gnssErrorCount;
-    SystemHealthMessage.data.systemHealth.imu_error_count = m_imuErrorCount;
-    SystemHealthMessage.data.systemHealth.logger_queue_overflows = m_loggerDroppedCount;
-    SystemHealthMessage.data.systemHealth.logger_buffer_usage = static_cast<uint16_t>(m_loggerWriter->bytesBuffered());
-
-    if (xQueueSend(m_logQueue, &SystemHealthMessage, 0) != pdPASS){
-        incrementLoggerDroppedCount();
-        setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
-    }
+    handleLogSystemHealthMessage(getTimestampUs(), errorFlags);
 }
 
 void Rocket::buzzerLoop(){
@@ -1312,4 +1192,128 @@ void Rocket::handleLogFlightStateMessage(uint64_t timestamp,
         incrementLoggerDroppedCount();
         setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
     }                                    
+}
+
+void Rocket::handleLogIMUMessage(uint64_t timestamp,
+                                 uint32_t sequence,
+                                 const Eigen::Vector3f &accel,
+                                 const Eigen::Vector3f &gyro){
+    LogEvent IMUevent{};
+
+    IMUevent.type = LogEventType::IMU;
+
+    IMUevent.data.imu.timestamp = timestamp;
+    IMUevent.data.imu.sequence = sequence;
+
+    IMUevent.data.imu.accel_raw[0] =
+        static_cast<int16_t>(accel[0] * LOGGER_IMU_SCALE_FACTOR);
+
+    IMUevent.data.imu.accel_raw[1] =
+        static_cast<int16_t>(accel[1] * LOGGER_IMU_SCALE_FACTOR);
+
+    IMUevent.data.imu.accel_raw[2] =
+        static_cast<int16_t>(accel[2] * LOGGER_IMU_SCALE_FACTOR);
+
+    IMUevent.data.imu.gyro_raw[0] =
+        static_cast<int16_t>(gyro[0] * LOGGER_IMU_SCALE_FACTOR);
+
+    IMUevent.data.imu.gyro_raw[1] =
+        static_cast<int16_t>(gyro[1] * LOGGER_IMU_SCALE_FACTOR);
+
+    IMUevent.data.imu.gyro_raw[2] =
+        static_cast<int16_t>(gyro[2] * LOGGER_IMU_SCALE_FACTOR);
+
+    if (xQueueSend(m_logQueue, &IMUevent, 0) != pdPASS){
+        incrementLoggerDroppedCount();
+        setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
+    }
+}
+
+void Rocket::handleLogAHRSMessage(uint64_t timestamp){
+    LogEvent AHRSevent{};
+
+    AHRSevent.type = LogEventType::AHRS;
+    AHRSevent.data.ahrs.timestamp = timestamp;
+    AHRSevent.data.ahrs.gyroBias[0] = m_ahrs->getGyroBias()[0] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
+    AHRSevent.data.ahrs.gyroBias[1] = m_ahrs->getGyroBias()[1] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
+    AHRSevent.data.ahrs.gyroBias[2] = m_ahrs->getGyroBias()[2] * LOGGER_GYRO_BIAS_SCALE_FACTOR;
+
+    const fp32* quaternionFP32 = m_ahrs->getQuaternion();
+    for (int i = 0; i < 4; ++i){
+        AHRSevent.data.ahrs.quaternion[i] = static_cast<int16_t>(quaternionFP32[i] * LOGGER_QUATERNION_SCALE_FACTOR);
+    }
+
+    if (xQueueSend(m_logQueue, &AHRSevent, 0) != pdPASS){
+        incrementLoggerDroppedCount();
+        setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
+    }
+}
+
+void Rocket::handleLogGNSSMessage(uint64_t timestamp){
+    LogEvent event{};
+
+    event.type = LogEventType::GNSS;
+    event.data.gnss.timestamp = timestamp;
+    event.data.gnss.iTOW_ms = m_gnss->getITOW();
+    event.data.gnss.latitude_deg_e7 = m_gnss->getLatitude();
+    event.data.gnss.longitude_deg_e7 = m_gnss->getLongitude();
+    event.data.gnss.altitude_msl_mm = m_gnss->getAltitude();
+    event.data.gnss.velocity_north_mm_s = m_gnss->getVelocityNorth();
+    event.data.gnss.velocity_east_mm_s = m_gnss->getVelocityEast();
+    event.data.gnss.velocity_down_mm_s = m_gnss->getVelocityDown();
+    event.data.gnss.h_accuracy_mm = m_gnss->getHAccuracy();
+    event.data.gnss.v_accuracy_mm = m_gnss->getVAccuracy();
+    event.data.gnss.speed_accuracy_mm_s = m_gnss->getSpeedAccuracy();
+    event.data.gnss.valid_flags = m_gnss->getValid();
+    event.data.gnss.fix_type = m_gnss->getFixType();
+    event.data.gnss.num_satellites = m_gnss->getNumSatellites();
+
+    if (xQueueSend(m_logQueue, &event, 0) != pdPASS){
+        incrementLoggerDroppedCount();
+        setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
+    }
+}
+
+void Rocket::handleLogFlightEstimateMessage(uint64_t timestamp, fp32 barometerAltitude){
+    LogEvent FlightEstimateMessage{};
+
+    FlightEstimateMessage.type = LogEventType::FlightEstimate;
+    FlightEstimateMessage.data.flightEstimate.timestamp = timestamp;
+    FlightEstimateMessage.data.flightEstimate.barometer_altitude_m = barometerAltitude;
+
+    if (xQueueSend(m_logQueue, &FlightEstimateMessage, 0) != pdPASS){
+        incrementLoggerDroppedCount();
+    }
+}
+
+void Rocket::handleLogPowerMessage(uint64_t timestamp, fp32 batteryVoltage){
+    LogEvent PowerMessageEvent{};
+
+    PowerMessageEvent.type = LogEventType::Power;
+    PowerMessageEvent.data.power.timestamp = timestamp;
+    PowerMessageEvent.data.power.battery_voltage_mv = batteryVoltage * 1000.0f;
+
+    if (xQueueSend(m_logQueue, &PowerMessageEvent, 0) != pdPASS){
+        incrementLoggerDroppedCount();
+        setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
+    }
+}
+
+void Rocket::handleLogSystemHealthMessage(uint64_t timestamp, uint32_t errorFlags){
+    LogEvent SystemHealthMessageEvent{};
+
+    SystemHealthMessageEvent.type = LogEventType::SystemHealth;
+    SystemHealthMessageEvent.data.systemHealth.timestamp = timestamp;
+    SystemHealthMessageEvent.data.systemHealth.error_flags = errorFlags;
+    SystemHealthMessageEvent.data.systemHealth.baro_error_count = m_baroErrorCount;
+    SystemHealthMessageEvent.data.systemHealth.flash_error_count = m_flashErrorCount;
+    SystemHealthMessageEvent.data.systemHealth.gnss_error_count = m_gnssErrorCount;
+    SystemHealthMessageEvent.data.systemHealth.imu_error_count = m_imuErrorCount;
+    SystemHealthMessageEvent.data.systemHealth.logger_queue_overflows = m_loggerDroppedCount;
+    SystemHealthMessageEvent.data.systemHealth.logger_buffer_usage = static_cast<uint16_t>(m_loggerWriter->bytesBuffered());
+
+    if (xQueueSend(m_logQueue, &SystemHealthMessageEvent, 0) != pdPASS){
+        incrementLoggerDroppedCount();
+        setSystemHealthError(SystemHealthErrorFlag::LoggerQueueOverFlow);
+    }
 }
