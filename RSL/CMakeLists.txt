@@ -35,6 +35,16 @@ file(GLOB_RECURSE RSL_ALGORITHM_INS_MECHANIZATION_SOURCES
     "Algorithm/Ins/Mechanization/src/*.cpp"
 )
 
+file(GLOB_RECURSE RSL_ALGORITHM_INS_ESKF_SOURCES
+    "Algorithm/Ins/ErrorStateKalmanFilter/src/*.c"
+    "Algorithm/Ins/ErrorStateKalmanFilter/src/*.cpp"
+)
+
+file(GLOB_RECURSE RSL_ALGORITHM_INS_GNSS_MODEL_SOURCES
+    "Algorithm/Ins/GNSSMeasurementModel/src/*.c"
+    "Algorithm/Ins/GNSSMeasurementModel/src/*.cpp"
+)
+
 file(GLOB_RECURSE RSL_COMMAND_SOURCES
     "Command/src/*.c"
     "Command/src/*.cpp"
@@ -117,6 +127,8 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${RSL_ALGORITHM_GENERAL_SOURCES}
     ${RSL_ALGORITHM_KALMANFILTER_SOURCES}
     ${RSL_ALGORITHM_INS_MECHANIZATION_SOURCES}
+    ${RSL_ALGORITHM_INS_ESKF_SOURCES}
+    ${RSL_ALGORITHM_INS_GNSS_MODEL_SOURCES}
 
     ${RSL_DEVICE_BAROMETER_SOURCES}
     ${RSL_DEVICE_BUZZER_SOURCES}
@@ -143,6 +155,8 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     Algorithm/General/inc
     Algorithm/KalmanFilter/inc
     Algorithm/Ins/common
+    Algorithm/Ins/ErrorStateKalmanFilter/inc
+    Algorithm/Ins/GNSSMeasurementModel/inc
     Algorithm/Ins/Mechanization/inc
     Algorithm/Ins/Types/inc
 

@@ -26,6 +26,9 @@
 #include "Eigen/Core"
 
 class RocketCommand; 
+namespace INS {
+class ESKF_INS;
+}
 
 class Rocket
 {
@@ -90,6 +93,7 @@ public:
 private:
     IMU *m_imu;
     AHRS *m_ahrs;
+    INS::ESKF_INS *m_ins;
     GNSS *m_gnss;
     W25Q128 *m_flash;
     SX1268 *m_lora;
@@ -186,6 +190,7 @@ private:
 public:
     Rocket(IMU *imu, 
            AHRS *m_ahrs,
+           INS::ESKF_INS *ins,
            GNSS *gnss, 
            W25Q128 *flash, 
            SX1268 *lora, 

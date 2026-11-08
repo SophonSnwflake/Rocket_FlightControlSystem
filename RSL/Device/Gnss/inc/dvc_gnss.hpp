@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Eigen/Core"
 #include "RSL_common.h"
 #include "cmsis_os.h"
 #include "stm32f411xe.h"
@@ -8,6 +9,44 @@
 class GNSS
 {
 public:
+    typedef enum {
+    FIX_NONE = 0,        // 无定位
+    FIX_GPS = 1,         // GPS单点定位
+    FIX_DGPS = 2,        // 差分定位
+    FIX_PPS = 3,         // PPS定位
+    FIX_RTK_FIXED = 4,   // RTK固定解
+    FIX_RTK_FLOAT = 5,   // RTK浮动解
+    } GNSS_FixType;
+
+    enum class NavigationFixType : uint8_t {
+        None = 0,
+        DeadReckoningOnly = 1,
+        Fix2D = 2,
+        Fix3D = 3,
+        GNSSAndDeadReckoning = 4,
+        TimeOnly = 5
+    };
+
+    // 标准GNSS帧
+    struct GNSSSample{
+        uint32_t timestampCycles = 0U; // DWT周期计数
+        uint32_t sequence = 0U;
+        uint32_t timeOfWeekMs = 0U; // GNSS周内时间，ms
+
+        Eigen::Vector3d positionBLH = Eigen::Vector3d::Zero(); // [rad, rad, m]，纬度、经度、椭球高
+        Eigen::Vector3f velocityNED = Eigen::Vector3f::Zero(); // m/s，北、东、地
+        Eigen::Vector3f positionStdNED = Eigen::Vector3f::Zero(); // m，NED三轴定位标准差
+        fp32 speedStd = 0.0f; // m/s
+
+        NavigationFixType fixType = NavigationFixType::None;
+        uint8_t satelliteCount = 0U;
+
+        bool isTimestampValid = false;
+        bool isPositionValid = false;
+        bool isVelocityValid = false;
+        bool isAccuracyValid = false;
+    };
+
     typedef struct {
     uint8_t time : 1;       // 时间有效
     uint8_t latitude : 1;   // 纬度有效
@@ -18,15 +57,6 @@ public:
     uint8_t tracking : 1;   // 航向有效
     uint8_t velocity : 1;    // 速度有效
     } valid;
-
-    typedef enum {
-    FIX_NONE = 0,        // 无定位
-    FIX_GPS = 1,         // GPS单点定位
-    FIX_DGPS = 2,        // 差分定位
-    FIX_PPS = 3,         // PPS定位
-    FIX_RTK_FIXED = 4,   // RTK固定解
-    FIX_RTK_FLOAT = 5,   // RTK浮动解
-    } GNSS_FixType;
 
 protected:
     //位置
@@ -60,6 +90,10 @@ protected:
     valid m_valid; // 有效判定
     GNSS_FixType m_fixType; //定位方式
 
+    GNSSSample m_latestSample{};
+    uint32_t m_sampleSequence = 0U;
+    bool m_hasUnreadSample = false;
+
 public:
     GNSS();
     virtual ~GNSS() = default;
@@ -67,6 +101,7 @@ public:
     virtual void handleGNSSMessageLoop() = 0;
     virtual void receiveGNSSMessageFromUART(uint8_t *pRxData, uint16_t rxDataLength) = 0;
     virtual bool isHasNewData() = 0;
+    bool readSample(GNSSSample &sample);
     // virtual void 
     uint8_t nmea_checksum(const char *sentence);
     int32_t getLatitude(){return m_latitude;}
@@ -121,6 +156,7 @@ protected:
     uint8_t m_rxBuffer[2048];
     uint16_t m_para_size;
     MemoryState m_memoryState;
+    uint32_t m_rxTimestampCycles = 0U;
 
 public:
     NEOM9N_UART();

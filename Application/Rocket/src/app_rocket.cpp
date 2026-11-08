@@ -39,6 +39,7 @@ extern volatile uint32_t g_callback_count;
 
 Rocket::Rocket(IMU *imu,
             AHRS *ahrs,
+            INS::ESKF_INS *ins,
             GNSS *gnss, 
             W25Q128 *flash, 
             SX1268 *lora, 
@@ -53,6 +54,7 @@ Rocket::Rocket(IMU *imu,
             VoltageProbe *voltageProbe):
     m_imu(imu),
     m_ahrs(ahrs),
+    m_ins(ins),
     m_gnss(gnss),
     m_flash(flash),
     m_lora(lora),
@@ -228,15 +230,15 @@ void Rocket::rocketTotalLoop(){
             handlePendingUARTCommand();
             handlePendingLoRaCommand();
         }
-        phaseSelect();
-        parachuteLoop();
-        barometerLoop();
-        sendFlightTelemetryPayloadLoop();
-        sendSystemTelemetryPayloadLoop();
-        logFlightEstimateMessageLoop();
-        logPowerMessageLoop();
-        logSystemHealthMessageLoop();
-        buzzerLoop();
+        // phaseSelect();
+        // parachuteLoop();
+        // barometerLoop();
+        // sendFlightTelemetryPayloadLoop();
+        // sendSystemTelemetryPayloadLoop();
+        // logFlightEstimateMessageLoop();
+        // logPowerMessageLoop();
+        // logSystemHealthMessageLoop();
+        // buzzerLoop();
         // m_vofa->voFaLoop();
         
         m_nowTimeus = getTimestampUs();
@@ -588,7 +590,9 @@ void Rocket::imuLoop()
         m_imuErrorCount ++;
         return;
     }
-    AHRSLoop();
+
+    // AHRSLoop();
+    
     if (!m_hasPreviousIMUSample) {
         m_previousIMUSample = m_currentIMUSample;
         m_hasPreviousIMUSample = true;
@@ -596,80 +600,83 @@ void Rocket::imuLoop()
     }
     m_imuSequence ++;
     m_rawAccel = m_imu->getAccelRawData();
-    switch (m_launchPhase)
-    {  
-        case LaunchPhase::STANDBY:{
-            break;
-        }
 
-        case LaunchPhase::ARMED:{
-            if (!m_logger->isStarted() || !m_isAllChipErased){
-                break;
-            }
-            const Eigen::Vector3f accel =
-                m_imu->getAccelRawData();
 
-            const Eigen::Vector3f gyro =
-                m_imu->getGyroRawData();
+    // switch (m_launchPhase)
+    // {  
+    //     case LaunchPhase::STANDBY:{
+    //         break;
+    //     }
 
-            uint32_t temTimeStamp_imuLog_us;
-            temTimeStamp_imuLog_us = getTimestampUs();
-            if(temTimeStamp_imuLog_us - m_lastIMULog_ARMED_us < LOGGER_IMU_ARMED_PERIOD_MS * 1000){
-                return;
-            }
-            m_lastIMULog_ARMED_us = temTimeStamp_imuLog_us;
+    //     case LaunchPhase::ARMED:{
+    //         if (!m_logger->isStarted() || !m_isAllChipErased){
+    //             break;
+    //         }
+    //         const Eigen::Vector3f accel =
+    //             m_imu->getAccelRawData();
 
-            handleLogIMUMessage(getTimestampUs(), m_imuSequence, accel, gyro);
+    //         const Eigen::Vector3f gyro =
+    //             m_imu->getGyroRawData();
 
-            uint32_t temTimeStamp_ahrsLog_us;
-            temTimeStamp_ahrsLog_us = getTimestampUs();
-            if(temTimeStamp_ahrsLog_us - m_lastAHRSLog_ARMED_us < LOGGER_AHRS_ARMED_PERIOD_MS * 1000){
-                return;
-            }
-            m_lastAHRSLog_ARMED_us = temTimeStamp_ahrsLog_us;
+    //         uint32_t temTimeStamp_imuLog_us;
+    //         temTimeStamp_imuLog_us = getTimestampUs();
+    //         if(temTimeStamp_imuLog_us - m_lastIMULog_ARMED_us < LOGGER_IMU_ARMED_PERIOD_MS * 1000){
+    //             return;
+    //         }
+    //         m_lastIMULog_ARMED_us = temTimeStamp_imuLog_us;
 
-            handleLogAHRSMessage(getTimestampUs());
-            break;
-        }
+    //         handleLogIMUMessage(getTimestampUs(), m_imuSequence, accel, gyro);
 
-        case LaunchPhase::ASCENT:
-        case LaunchPhase::DESCENT:{
-            const Eigen::Vector3f accel =
-                m_imu->getAccelRawData();
+    //         uint32_t temTimeStamp_ahrsLog_us;
+    //         temTimeStamp_ahrsLog_us = getTimestampUs();
+    //         if(temTimeStamp_ahrsLog_us - m_lastAHRSLog_ARMED_us < LOGGER_AHRS_ARMED_PERIOD_MS * 1000){
+    //             return;
+    //         }
+    //         m_lastAHRSLog_ARMED_us = temTimeStamp_ahrsLog_us;
 
-            const Eigen::Vector3f gyro =
-                m_imu->getGyroRawData();
+    //         handleLogAHRSMessage(getTimestampUs());
+    //         break;
+    //     }
 
-            uint32_t temTimeStamp_imuLog_us;
-            temTimeStamp_imuLog_us = getTimestampUs();
-            if(temTimeStamp_imuLog_us - m_lastIMULog_us < LOGGER_IMU_PERIOD_MS * 1000){
-                return;
-            }
-            m_lastIMULog_us = temTimeStamp_imuLog_us;
+    //     case LaunchPhase::ASCENT:
+    //     case LaunchPhase::DESCENT:{
+    //         const Eigen::Vector3f accel =
+    //             m_imu->getAccelRawData();
 
-            handleLogIMUMessage(getTimestampUs(), m_imuSequence, accel, gyro);
+    //         const Eigen::Vector3f gyro =
+    //             m_imu->getGyroRawData();
 
-            uint32_t temTimeStamp_ahrsLog_us;
-            temTimeStamp_ahrsLog_us = getTimestampUs();
-            if(temTimeStamp_ahrsLog_us - m_lastAHRSLog_us < LOGGER_AHRS_PERIOD_MS * 1000){
-                return;
-            }
-            m_lastAHRSLog_us = temTimeStamp_ahrsLog_us;
+    //         uint32_t temTimeStamp_imuLog_us;
+    //         temTimeStamp_imuLog_us = getTimestampUs();
+    //         if(temTimeStamp_imuLog_us - m_lastIMULog_us < LOGGER_IMU_PERIOD_MS * 1000){
+    //             return;
+    //         }
+    //         m_lastIMULog_us = temTimeStamp_imuLog_us;
 
-            handleLogAHRSMessage(getTimestampUs());
-            break;
-        }
+    //         handleLogIMUMessage(getTimestampUs(), m_imuSequence, accel, gyro);
 
-        case LaunchPhase::LANDED:
-        {
-            break;
-        }
+    //         uint32_t temTimeStamp_ahrsLog_us;
+    //         temTimeStamp_ahrsLog_us = getTimestampUs();
+    //         if(temTimeStamp_ahrsLog_us - m_lastAHRSLog_us < LOGGER_AHRS_PERIOD_MS * 1000){
+    //             return;
+    //         }
+    //         m_lastAHRSLog_us = temTimeStamp_ahrsLog_us;
 
-        case LaunchPhase::SELF_TEST:
-        {
-            break;
-        }
-    }
+    //         handleLogAHRSMessage(getTimestampUs());
+    //         break;
+    //     }
+    
+
+    //     case LaunchPhase::LANDED:
+    //     {
+    //         break;
+    //     }
+
+    //     case LaunchPhase::SELF_TEST:
+    //     {
+    //         break;
+    //     }
+    // }
     return;
 }
 

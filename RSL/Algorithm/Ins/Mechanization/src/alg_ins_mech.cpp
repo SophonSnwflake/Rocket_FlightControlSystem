@@ -12,7 +12,6 @@
  */
 
 #include "alg_ins_mech.hpp"
-#include "alg_ins_mech_para.hpp"
 #include "earth.h"
 #include "rotation.h"
 #include <algorithm>
@@ -20,20 +19,6 @@
 static const fp64 INSMECH_MAX_TIME_DT_S = 0.1; // 最大时间间隔
 static const fp64 INSMECH_MIN_TIME_DT_S = 0.0001; // 最小时间间隔
 
-bool INSMechanization::insMech(const NavState &navState_previous, NavState &navState_current,const IMUData &imuData_previous, const IMUData &imuData_current, const INSState &insState){ 
-    if(insState == INSState::Running){
-        if(!updateVelocity(navState_previous, navState_current, imuData_previous, imuData_current, insState)){
-            return false;
-        }
-        if(!updatePosition(navState_previous, navState_current,imuData_current, insState)){
-            return false;
-        }
-    }
-    if(!updateAttitude(navState_previous, navState_current, imuData_previous, imuData_current, insState)){
-        return false;
-    }
-    return true;
-}
 
 /**
  * @brief 使用相邻两帧IMU增量完成NED导航系速度更新。
@@ -46,7 +31,7 @@ bool INSMechanization::insMech(const NavState &navState_previous, NavState &navS
  * @return true 速度更新成功，输出速度有效。
  * @return false 输入时间、IMU数据或导航状态无效。
  */
-bool INSMechanization::updateVelocity(const NavState &navState_previous, NavState &navState_current,const IMUData &imuData_previous, const IMUData &imuData_current, const INSState &insState){
+bool INSMechanization::updateVelocity(const NavState &navState_previous, NavState &navState_current,const IMUData &imuData_previous, const IMUData &imuData_current){
 // 当前速度 = 上一时刻速度 + 比力更新 + 场力更新
 
     // 检查合法性
@@ -165,7 +150,7 @@ bool INSMechanization::updateVelocity(const NavState &navState_previous, NavStat
  * @note 输入和输出速度均采用 NED，垂直速度向下为正，因此高度更新时
  *       需要减去垂直速度在当前采样周期内的积分量。
  */
-bool INSMechanization::updatePosition(const NavState &navState_previous, NavState &navState_current, const IMUData &imuData_current, const INSState &insState){
+bool INSMechanization::updatePosition(const NavState &navState_previous, NavState &navState_current, const IMUData &imuData_current){
     // 检查合法性
     if(imuData_current.dt > INSMECH_MAX_TIME_DT_S)return false;
     if(imuData_current.dt < INSMECH_MIN_TIME_DT_S)return false;
@@ -263,14 +248,13 @@ bool INSMechanization::updatePosition(const NavState &navState_previous, NavStat
  * @note 两帧 IMU 数据必须时间连续且采样间隔近似相等；dtheta 的单位为
  *       rad，姿态四元数表示从机体系到 NED 导航系的旋转。
  */
-bool INSMechanization::updateAttitude(const NavState &navState_previous, NavState &navState_current, const IMUData &imuData_previous, const IMUData &imuData_current, const INSState &insState){
+bool INSMechanization::updateAttitude(const NavState &navState_previous, NavState &navState_current, const IMUData &imuData_previous, const IMUData &imuData_current){
 // qbn = qnn @ qbn(k-1) @ qbb
 
     static constexpr fp64 MIN_QUATERNION_NORM = 1e-8;
     static constexpr fp64 MIN_COS_LATITUDE = 1e-8;
     static constexpr fp64 MIN_RADIUS_HEIGHT = 1e-8;
 
-    if(insState != INSState::WaitingForInitialization && insState != INSState::Running) return false;
     if(!std::isfinite(imuData_previous.dt)) return false;
     if(!std::isfinite(imuData_current.dt)) return false;
     if(imuData_previous.dt < INSMECH_MIN_TIME_DT_S || imuData_previous.dt > INSMECH_MAX_TIME_DT_S) return false;

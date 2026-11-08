@@ -27,7 +27,7 @@ class IMU
 public:
     // 标准IMU帧
     struct IMUSample{
-        uint32_t timestampCycles = 0U; // 时间戳，单位微秒
+        uint32_t timestampCycles = 0U; // DWT周期计数
         uint32_t sequence = 0U;
 
         // 传感器坐标系，已换算物理单位，但未进行零偏和安装旋转补偿

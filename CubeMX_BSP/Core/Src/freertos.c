@@ -29,6 +29,7 @@
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
+typedef StaticTask_t osStaticThreadDef_t;
 /* USER CODE BEGIN PTD */
 
 /* USER CODE END PTD */
@@ -49,37 +50,62 @@
 /* USER CODE END Variables */
 /* Definitions for Rocket */
 osThreadId_t RocketHandle;
+uint32_t RocketBuffer[ 3072 ];
+osStaticThreadDef_t RocketControlBlock;
 const osThreadAttr_t Rocket_attributes = {
   .name = "Rocket",
-  .stack_size = 1024 * 4,
+  .cb_mem = &RocketControlBlock,
+  .cb_size = sizeof(RocketControlBlock),
+  .stack_mem = &RocketBuffer[0],
+  .stack_size = sizeof(RocketBuffer),
   .priority = (osPriority_t) osPriorityAboveNormal,
 };
 /* Definitions for GNSS */
 osThreadId_t GNSSHandle;
+uint32_t GNSSBuffer[ 512 ];
+osStaticThreadDef_t GNSSControlBlock;
 const osThreadAttr_t GNSS_attributes = {
   .name = "GNSS",
-  .stack_size = 512 * 4,
+  .cb_mem = &GNSSControlBlock,
+  .cb_size = sizeof(GNSSControlBlock),
+  .stack_mem = &GNSSBuffer[0],
+  .stack_size = sizeof(GNSSBuffer),
   .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for IMU */
 osThreadId_t IMUHandle;
+uint32_t IMUBuffer[ 1024 ];
+osStaticThreadDef_t IMUControlBlock;
 const osThreadAttr_t IMU_attributes = {
   .name = "IMU",
-  .stack_size = 1024 * 4,
+  .cb_mem = &IMUControlBlock,
+  .cb_size = sizeof(IMUControlBlock),
+  .stack_mem = &IMUBuffer[0],
+  .stack_size = sizeof(IMUBuffer),
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for LOG */
 osThreadId_t LOGHandle;
+uint32_t LOGBuffer[ 512 ];
+osStaticThreadDef_t LOGControlBlock;
 const osThreadAttr_t LOG_attributes = {
   .name = "LOG",
-  .stack_size = 512 * 4,
+  .cb_mem = &LOGControlBlock,
+  .cb_size = sizeof(LOGControlBlock),
+  .stack_mem = &LOGBuffer[0],
+  .stack_size = sizeof(LOGBuffer),
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for LORA */
 osThreadId_t LORAHandle;
+uint32_t LORABuffer[ 512 ];
+osStaticThreadDef_t LORAControlBlock;
 const osThreadAttr_t LORA_attributes = {
   .name = "LORA",
-  .stack_size = 512 * 4,
+  .cb_mem = &LORAControlBlock,
+  .cb_size = sizeof(LORAControlBlock),
+  .stack_mem = &LORABuffer[0],
+  .stack_size = sizeof(LORABuffer),
   .priority = (osPriority_t) osPriorityNormal,
 };
 

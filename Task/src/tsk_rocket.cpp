@@ -9,6 +9,8 @@
 #include "mid_logger.hpp"
 #include "app_logger.hpp"
 #include "dvc_vofa.hpp"
+#include "mid_ins.hpp"
+#include "alg_ins_mech.hpp"
 #include "usart.h"
 #include <Eigen/Geometry>
 
@@ -79,7 +81,15 @@ VoFa vofa(1, &huart1);
 
 VoltageProbe voltageProbe(&hadc1);
 
-Rocket rocket(&imu, &myEKF, &gnss, &flash, &lora, &barometer, &buzzer, &logger, &loggerWriter, nullptr, nullptr, &communicator, &vofa, &voltageProbe);
+INSMechanization insMech;
+
+INS::INSESKF insEskf;
+
+INS::GNSSMeasurementModel gnssModel;
+
+INS::ESKF_INS ins(&insMech, &insEskf, &gnssModel);
+
+Rocket rocket(&imu, &myEKF, &ins, &gnss, &flash, &lora, &barometer, &buzzer, &logger, &loggerWriter, nullptr, nullptr, &communicator, &vofa, &voltageProbe);
 
 RocketCommand uartCommand(rocket, Application::Command::CommandSource::UART);
 

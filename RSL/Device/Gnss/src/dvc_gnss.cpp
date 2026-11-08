@@ -1,5 +1,7 @@
 #include "dvc_gnss.hpp"
 #include "drv_time.h"
+#include "FreeRTOS.h"
+#include "task.h"
 #include <cstring>
 #include <stdio.h>
 
@@ -25,6 +27,20 @@ const char *nmea_delimiter[] = {
 GNSS::GNSS(){
     memset(&m_valid, 0, sizeof(m_valid));
     m_fixType = FIX_NONE;
+}
+
+bool GNSS::readSample(GNSSSample &sample){
+    bool hasSample = false;
+
+    taskENTER_CRITICAL();
+    if (m_hasUnreadSample) {
+        sample = m_latestSample;
+        m_hasUnreadSample = false;
+        hasSample = true;
+    }
+    taskEXIT_CRITICAL();
+
+    return hasSample;
 }
 
 NEOM9N_UART::NEOM9N_UART(){
@@ -80,6 +96,10 @@ void NEOM9N_UART::parseUBXMessage(uint8_t *message, uint16_t message_size){
 
 void NEOM9N_UART::parseNavPvt(uint8_t *payload, uint16_t length){
     if (length != 92) return;
+    static constexpr fp64 DEGREE_E7_TO_RADIAN =
+        3.14159265358979323846 / (180.0 * 1.0e7);
+    static constexpr fp64 MILLIMETER_TO_METER = 0.001;
+
     m_iTOW = readU4(&payload[0]);
     m_time_y = payload[4] | (payload[5] << 8);
     m_time_mon = payload[6];
@@ -95,6 +115,7 @@ void NEOM9N_UART::parseNavPvt(uint8_t *payload, uint16_t length){
     m_longitude = lon_raw;
     int32_t lat_raw = readI4(&payload[28]);
     m_latitude = lat_raw;
+    int32_t height_ellipsoid_raw = readI4(&payload[32]);
     int32_t hmsl_raw = readI4(&payload[36]);
     m_altitude = hmsl_raw;
     uint32_t h_acc_raw = readU4(&payload[40]);
@@ -118,6 +139,52 @@ void NEOM9N_UART::parseNavPvt(uint8_t *payload, uint16_t length){
     m_valid.altitude = 1;
     m_valid.velocity =1;
 }
+
+    GNSSSample nextSample{};
+    nextSample.timestampCycles = m_rxTimestampCycles;
+    nextSample.sequence = ++m_sampleSequence;
+    nextSample.timeOfWeekMs = m_iTOW;
+
+    nextSample.positionBLH <<
+        static_cast<fp64>(lat_raw) * DEGREE_E7_TO_RADIAN,
+        static_cast<fp64>(lon_raw) * DEGREE_E7_TO_RADIAN,
+        static_cast<fp64>(height_ellipsoid_raw) * MILLIMETER_TO_METER;
+
+    nextSample.velocityNED <<
+        static_cast<fp32>(velN_raw) * 0.001f,
+        static_cast<fp32>(velE_raw) * 0.001f,
+        static_cast<fp32>(velD_raw) * 0.001f;
+
+    const fp32 horizontalPositionStd = static_cast<fp32>(h_acc_raw) * 0.001f;
+    const fp32 verticalPositionStd = static_cast<fp32>(v_acc_raw) * 0.001f;
+    nextSample.positionStdNED <<
+        horizontalPositionStd,
+        horizontalPositionStd,
+        verticalPositionStd;
+    nextSample.speedStd = static_cast<fp32>(s_acc_raw) * 0.001f;
+
+    const uint8_t navigationFixType = payload[20];
+    if (navigationFixType <= static_cast<uint8_t>(NavigationFixType::TimeOnly)) {
+        nextSample.fixType = static_cast<NavigationFixType>(navigationFixType);
+    }
+    nextSample.satelliteCount = m_num_satellites;
+
+    const uint8_t timeValidityFlags = payload[11];
+    const uint8_t navigationFlags = payload[21];
+    const bool isGNSSFixValid = (navigationFlags & 0x01U) != 0U;
+    const bool has3DPosition =
+        navigationFixType == static_cast<uint8_t>(NavigationFixType::Fix3D) ||
+        navigationFixType == static_cast<uint8_t>(NavigationFixType::GNSSAndDeadReckoning);
+
+    nextSample.isTimestampValid = (timeValidityFlags & 0x06U) == 0x06U;
+    nextSample.isPositionValid = isGNSSFixValid && has3DPosition;
+    nextSample.isVelocityValid = isGNSSFixValid && has3DPosition;
+    nextSample.isAccuracyValid = isGNSSFixValid && has3DPosition;
+
+    taskENTER_CRITICAL();
+    m_latestSample = nextSample;
+    m_hasUnreadSample = true;
+    taskEXIT_CRITICAL();
 }
 
 bool NEOM9N_UART::verifyChecksum(uint8_t *msg, uint16_t msg_size) {
@@ -152,6 +219,7 @@ void NEOM9N_UART::handleGNSSMessageLoop(){
 void NEOM9N_UART::receiveGNSSMessageFromUART(uint8_t *pRxData, uint16_t rxDataLength){
     if(m_memoryState!= BUSY){
     if (rxDataLength > sizeof(m_rxBuffer)) return;
+    m_rxTimestampCycles = DWT_GetTimestamp();
     memcpy(m_rxBuffer, pRxData, rxDataLength);
     m_para_size = rxDataLength;
     m_memoryState = LOADED;
