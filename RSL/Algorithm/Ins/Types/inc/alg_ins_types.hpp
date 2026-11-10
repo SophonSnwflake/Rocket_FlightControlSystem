@@ -29,7 +29,10 @@ enum class INS_Error {
     UpdateAttitudeFailed,
     ESKFNotAvailable,
     ESKFNotInitialized,
+    ESKFInitializationFailed,
     ESKFPredictFailed,
+    GNSSModelNotAvailable,
+    GNSSModelInitializationFailed,
     MechanizationNotAvailable,
     ESKFResetFailed,
     ESKFFeedbackFailed
@@ -110,13 +113,18 @@ typedef struct {
 } NavState; // 导航状态空间定义（名义状态）
 
 
-typedef struct {
-    fp64 dt = 0.0; // s, 时间间隔
+struct IMUIncrement {
+    fp64 dt = 0.0; // s，完整预积分区间的实际时间长度
 
-    Eigen::Vector3d dtheta = Eigen::Vector3d::Zero(); // rad, 角增量
-    Eigen::Vector3d dvelocity = Eigen::Vector3d::Zero(); // m/s, 速度增量
+    Eigen::Vector3d dtheta = Eigen::Vector3d::Zero(); // rad，机体系角增量
+    Eigen::Vector3d dvelocity = Eigen::Vector3d::Zero(); // m/s，机体系速度增量
 
-} IMUData; // 输入给惯性编排的IMU数据
+    uint32_t startTimestampCycles = 0U; // 增量起点的DWT周期计数
+    uint32_t endTimestampCycles = 0U; // 增量终点的DWT周期计数
+    uint32_t startSequence = 0U; // 增量起点的IMU样本序号
+    uint32_t endSequence = 0U; // 增量终点的IMU样本序号
+    uint16_t intervalCount = 0U; // 本增量包含的相邻IMU采样区间数量
+};
 
 struct GNSSMeasurement {
     fp64 timestamp = 0.0;

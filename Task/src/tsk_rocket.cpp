@@ -1,6 +1,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "app_rocket.hpp"
+#include "app_navigation.hpp"
 #include "dvc_imu.hpp"
 #include "alg_ahrs.hpp"
 #include "drv_uart.h"
@@ -11,6 +12,7 @@
 #include "dvc_vofa.hpp"
 #include "mid_ins.hpp"
 #include "alg_ins_mech.hpp"
+#include "alg_ins_imuPreintegrator.hpp"
 #include "usart.h"
 #include <Eigen/Geometry>
 
@@ -23,7 +25,7 @@ BMI088::CalibrationInfo cali = {
     {0.0f, 0.0f, 0.0f},
     {0.0f, 0.0f, 0.0f},
     Eigen::AngleAxisf(
-        -MATH_PI / 2.0f,
+        -MATH_PI,
         Eigen::Vector3f::UnitY()
     ).toRotationMatrix()
 };
@@ -77,7 +79,7 @@ Communicator communicator(&lora);
 
 BMP388 barometer(barometerHandle, barometerConfig);
 
-VoFa vofa(1, &huart1);
+VoFa vofa(12, &huart1);
 
 VoltageProbe voltageProbe(&hadc1);
 
@@ -87,9 +89,13 @@ INS::INSESKF insEskf;
 
 INS::GNSSMeasurementModel gnssModel;
 
+INS::IMUPreintegrator imuPreintegrator;
+
 INS::ESKF_INS ins(&insMech, &insEskf, &gnssModel);
 
-Rocket rocket(&imu, &myEKF, &ins, &gnss, &flash, &lora, &barometer, &buzzer, &logger, &loggerWriter, nullptr, nullptr, &communicator, &vofa, &voltageProbe);
+Application::Navigation navigation(&ins);
+
+Rocket rocket(&imu, &myEKF, &navigation, &imuPreintegrator, &gnss, &flash, &lora, &barometer, &buzzer, &logger, &loggerWriter, nullptr, nullptr, &communicator, &vofa, &voltageProbe);
 
 RocketCommand uartCommand(rocket, Application::Command::CommandSource::UART);
 

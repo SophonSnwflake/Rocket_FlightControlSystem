@@ -49,7 +49,7 @@ public:
     ~INSESKF() = default;
 
     bool init(const ESKFStateMatrix &initialCovariance, const ESKFNoiseParameters &noiseParameters);
-    bool predict(const NavState &navState, const IMUData &imuData);
+    bool predict(const NavState &navState, const IMUIncrement &imuIncrement);
 
     bool correct(const LinearizedMeasurement &measurement);
 
@@ -71,8 +71,8 @@ public:
 
 private:
     // 预测步
-    bool structPhiMatrix(const NavState &navState, const IMUData &imuData, ESKFStateMatrix &Phi);
-    bool structQMatrix(const NavState &navState, const IMUData &imuData, const ESKFStateMatrix &Phi, ESKFStateMatrix &Qd);
+    bool structPhiMatrix(const NavState &navState, const IMUIncrement &imuIncrement, ESKFStateMatrix &Phi);
+    bool structQMatrix(const NavState &navState, const IMUIncrement &imuIncrement, const ESKFStateMatrix &Phi, ESKFStateMatrix &Qd);
 
     // 更新步
     bool structHMatrix(const NavState &navState, const ESKFObservationMatrix &H);

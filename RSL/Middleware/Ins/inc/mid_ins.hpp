@@ -5,7 +5,6 @@
 #include "alg_ins_eskf.hpp"
 #include "alg_ins_gnssModel.hpp"
 #include "dvc_gnss.hpp"
-#include "dvc_imu.hpp"
 
 namespace INS{
 
@@ -19,24 +18,26 @@ private:
     GNSSMeasurementModel *m_gnssModel;
 
 private:
-    IMUData m_previousIMUData{};
-    IMUData m_currentIMUData{};
+    IMUIncrement m_currentIMUIncrement{};
     NavState m_previousNavState{};
     NavState m_currentNavState{};
 
     uint32_t m_lastGNSSSequence = 0U;
 
-    bool isCurrentIMUDataValid = false;
+    bool isCurrentIMUIncrementValid = false;
     bool isINSInitialized = false;
 public:
     ESKF_INS(INSMechanization *mec, INSESKF *eskf, GNSSMeasurementModel *gnssModel);
     ~ESKF_INS() = default;
 
     INS_Error init();
-    INS_Error update(IMU::IMUSample &previousSample, IMU::IMUSample &currentSample, GNSS::GNSSSample *gnssSample);
-    bool isINSInited() const { return isINSInitialized; }
+    INS_Error update(const IMUIncrement &imuIncrement, GNSS::GNSSSample *gnssSample);
+    bool isINSInited() const { return isINSInitialized;}
+
+    // 获取当前导航状态
+    const NavState &getCurrentNavState() const;
+
 private:
-    INS_Error packetIMUData(const IMU::IMUSample &previousSample, const IMU::IMUSample &currentSample, IMUData &imuData);
     bool isGNSSSampleAvailableForCorrection(const GNSS::GNSSSample *gnssSample) const;
     INS_Error errorFeedback(NavState &nextNavState);
 };

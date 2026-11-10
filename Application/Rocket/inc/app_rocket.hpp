@@ -26,8 +26,11 @@
 #include "Eigen/Core"
 
 class RocketCommand; 
+namespace Application {
+class Navigation;
+}
 namespace INS {
-class ESKF_INS;
+class IMUPreintegrator;
 }
 
 class Rocket
@@ -93,7 +96,8 @@ public:
 private:
     IMU *m_imu;
     AHRS *m_ahrs;
-    INS::ESKF_INS *m_ins;
+    Application::Navigation *m_navigation;
+    INS::IMUPreintegrator *m_imuPreintegrator;
     GNSS *m_gnss;
     W25Q128 *m_flash;
     SX1268 *m_lora;
@@ -113,7 +117,6 @@ private:
     LaunchPhase m_launchPhase = LaunchPhase::STANDBY;
     LaunchPhase m_lastLaunchPhase = LaunchPhase::STANDBY;
 
-    IMU::IMUSample m_previousIMUSample{};
     IMU::IMUSample m_currentIMUSample{};
 
     // 时间有关变量
@@ -137,6 +140,10 @@ private:
     uint32_t m_lastGNSSLoggerArmedTime_ms = 0;
     uint32_t m_lastGNSSLoggerLandedTime_ms = 0;
     uint32_t m_lastLandedBuzzerSwitchTime_ms = 0;
+    TickType_t m_lastINSVOFASendTick = 0;
+    uint64_t m_lastINSLoopTimePrintUs = 0;
+    uint32_t m_lastINSLoopExecutionCycles = 0U;
+    uint32_t m_maxINSLoopExecutionCycles = 0U;
 
     // 判断确有关变量
     uint16_t m_pitchParachuteConfirmTimes = 0;
@@ -146,6 +153,7 @@ private:
     // 科学变量
     int32_t m_velocity_mm_s = 0; // 天向速度，单位mm/s
     Eigen::Vector3f m_rawAccel = Eigen::Vector3f::Zero(); // 顺序为:X-Y-Z, 朝箭头正方向为正。单位m/s2。包含重力加速度
+    Eigen::Vector3f m_latestINSAccelBody = Eigen::Vector3f::Zero();
     Eigen::Vector3f m_eulerAngle_rad = Eigen::Vector3f::Zero(); // 欧拉角，单位弧度，顺序roll-pitch-yaw
     fp32 m_voltage = 0.0f;
     fp64 m_rawtemperature = 0.0f; // 当前温度
@@ -153,12 +161,14 @@ private:
     fp64 m_refTemp = 0.0f; // 基准温度
     fp64 m_refPre = 0.0f; // 基准气压
     fp32 m_baroAltitude = 0.0f; // 气压计高度
+    Eigen::Vector3d m_insVOFAOriginBLH = Eigen::Vector3d::Zero();
     uint32_t m_imuSequence = 0;
 
     // 错误计数器
     uint32_t m_systemHealthErrorFlags = 0U;
     uint32_t m_loggerDroppedCount = 0;
     uint32_t m_loggerErrorCount = 0U;
+    uint32_t m_imuPreintegrationErrorCount = 0U;
     uint16_t m_imuErrorCount =0U;
     uint16_t m_baroErrorCount = 0U;
     uint16_t m_gnssErrorCount = 0U;
@@ -171,7 +181,8 @@ private:
     bool m_isParachuteIgnitedAndClosed = false; // 判断点火电平是否复位
     bool m_isPrintingGNSSMessage = false;
     bool m_isOutputingFlashData = false;
-    bool m_hasPreviousIMUSample = false;
+    bool m_hasINSVOFAOrigin = false;
+    bool m_hasLatestINSAccelBody = false;
 
     // 队列
     StaticQueue_t m_logQueueControlBlock;
@@ -190,7 +201,8 @@ private:
 public:
     Rocket(IMU *imu, 
            AHRS *m_ahrs,
-           INS::ESKF_INS *ins,
+           Application::Navigation *navigation,
+           INS::IMUPreintegrator *imuPreintegrator,
            GNSS *gnss, 
            W25Q128 *flash, 
            SX1268 *lora, 
@@ -235,6 +247,7 @@ public:
     void logFlightEstimateMessageLoop();
     void logPowerMessageLoop();
     void logSystemHealthMessageLoop();
+    void INSLoop();
     bool setPhaseBetweenSTANDBYandARMED(LaunchPhase launchPhase);
     void setUARTCommand(RocketCommand* command);
     void setLoRaCommand(RocketCommand* command);
@@ -253,7 +266,9 @@ private:
     RocketError initLoRa();
     RocketError initFlash();
     RocketError initIMU();
+    RocketError initIMUPreintegrator();
     RocketError initGNSS();
+    RocketError initINS();
     RocketError initBarometer();
 
     // 状态指示相关

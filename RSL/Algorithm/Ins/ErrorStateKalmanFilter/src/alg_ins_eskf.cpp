@@ -67,11 +67,11 @@ bool INSESKF::init(const ESKFStateMatrix &initialCovariance, const ESKFNoisePara
 }
 
 
-bool INSESKF::predict(const NavState &navState, const IMUData &imuData) {
+bool INSESKF::predict(const NavState &navState, const IMUIncrement &imuIncrement) {
     if (!m_isInitialized) return false;
 
-    INS_TRY(structPhiMatrix(navState, imuData, m_Phi));
-    INS_TRY(structQMatrix(navState, imuData, m_Phi, m_Q));
+    INS_TRY(structPhiMatrix(navState, imuIncrement, m_Phi));
+    INS_TRY(structQMatrix(navState, imuIncrement, m_Phi, m_Q));
 
     m_predictedErrorState = m_Phi * m_errorState;
 
@@ -179,12 +179,12 @@ bool INSESKF::correct(const LinearizedMeasurement &measurement) {
 /**
  * @brief 根据当前导航状态和IMU增量构建21维离散状态转移矩阵Phi。
  * @param navState 用于线性化误差模型的当前导航状态。
- * @param imuData 当前周期的角增量、速度增量和时间间隔。
+ * @param imuIncrement 当前周期的角增量、速度增量和时间间隔。
  * @param Phi 成功时输出一阶离散化状态转移矩阵。
  * @return true 构建成功且输出矩阵有效。
  * @return false 输入无效或计算结果包含非有限值。
  */
-bool INSESKF::structPhiMatrix(const NavState &navState, const IMUData &imuData, ESKFStateMatrix &Phi){
+bool INSESKF::structPhiMatrix(const NavState &navState, const IMUIncrement &imuIncrement, ESKFStateMatrix &Phi){
     // 状态索引与数值保护阈值
     static constexpr Eigen::Index POSITION_ID = 0;
     static constexpr Eigen::Index VELOCITY_ID = 3;
@@ -198,13 +198,13 @@ bool INSESKF::structPhiMatrix(const NavState &navState, const IMUData &imuData, 
     static constexpr fp64 HALF_PI = 1.57079632679489661923;
 
     // 输入数据有效性检查
-    if (!std::isfinite(imuData.dt)) return false;
-    if (imuData.dt <= 0.0) return false;
+    if (!std::isfinite(imuIncrement.dt)) return false;
+    if (imuIncrement.dt <= 0.0) return false;
     if (!navState.position.allFinite()) return false;
     if (!navState.velocity.allFinite()) return false;
     if (!navState.attitude.coeffs().allFinite()) return false;
-    if (!imuData.dtheta.allFinite()) return false;
-    if (!imuData.dvelocity.allFinite()) return false;
+    if (!imuIncrement.dtheta.allFinite()) return false;
+    if (!imuIncrement.dvelocity.allFinite()) return false;
 
     // 纬度与姿态四元数有效性检查
     const fp64 latitude = navState.position[0];
@@ -247,8 +247,8 @@ bool INSESKF::structPhiMatrix(const NavState &navState, const IMUData &imuData, 
 
     // 计算姿态矩阵、比力和角速度
     m_bodyToNavigationMatrix = navState.attitude.normalized().toRotationMatrix();
-    const Eigen::Vector3d acceleration = imuData.dvelocity / imuData.dt;
-    const Eigen::Vector3d angularRate = imuData.dtheta / imuData.dt;
+    const Eigen::Vector3d acceleration = imuIncrement.dvelocity / imuIncrement.dt;
+    const Eigen::Vector3d angularRate = imuIncrement.dtheta / imuIncrement.dt;
     if (!m_bodyToNavigationMatrix.allFinite() || !acceleration.allFinite() || !angularRate.allFinite()) return false;
 
 
@@ -365,7 +365,7 @@ bool INSESKF::structPhiMatrix(const NavState &navState, const IMUData &imuData, 
     Phi.block<3, 3>(ACCEL_SCALE_ID, ACCEL_SCALE_ID) = m_matrix3Workspace;
 
     // 将连续时间状态矩阵F一阶离散化为Phi = I + F * dt
-    Phi *= imuData.dt;
+    Phi *= imuIncrement.dt;
     Phi.diagonal().array() += 1.0;
 
     // 检查离散状态转移矩阵
@@ -382,7 +382,7 @@ bool INSESKF::structPhiMatrix(const NavState &navState, const IMUData &imuData, 
  * @return true 构建成功，false 输入或计算结果无效。
  */
 bool INSESKF::structQMatrix(const NavState &navState,
-                           const IMUData &imuData,
+                           const IMUIncrement &imuIncrement,
                            const ESKFStateMatrix &Phi,
                            ESKFStateMatrix &Qd){
     // 误差状态索引
@@ -404,8 +404,8 @@ bool INSESKF::structQMatrix(const NavState &navState,
 
     // 输入数据有效性检查
     if (!m_isInitialized) return false;
-    if (!std::isfinite(imuData.dt)) return false;
-    if (imuData.dt <= 0.0) return false;
+    if (!std::isfinite(imuIncrement.dt)) return false;
+    if (imuIncrement.dt <= 0.0) return false;
     if (!navState.attitude.coeffs().allFinite()) return false;
     if (!Phi.allFinite()) return false;
     if (!m_Qc.allFinite()) return false;
@@ -431,7 +431,7 @@ bool INSESKF::structQMatrix(const NavState &navState,
     m_noiseMappingWorkspace.noalias() = m_noiseDriveMatrix * m_Qc;
     m_noiseAtIntervalStart.noalias() =
         m_noiseMappingWorkspace * m_noiseDriveMatrix.transpose();
-    m_noiseAtIntervalStart *= imuData.dt;
+    m_noiseAtIntervalStart *= imuIncrement.dt;
 
     m_stateMatrixWorkspace.noalias() = Phi * m_noiseAtIntervalStart;
     m_noiseAtIntervalEnd.noalias() =

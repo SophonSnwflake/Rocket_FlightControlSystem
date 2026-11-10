@@ -1,12 +1,16 @@
 #include "mid_ins.hpp"
 #include "mid_ins_para.hpp"
-#include "dvc_imu.hpp"
 #include "dvc_gnss.hpp"
 #include "drv_time.h"
 #include "earth.h"
 #include "rotation.h"
 
 #include <cmath>
+
+static uint32_t howManyFuckingPositionUpdateFailed = 0;
+static uint32_t howManyFuckingVelocityUpdateFailed = 0;
+static uint32_t howManyFuckingAttitudeUpdateFailed = 0;
+static uint32_t howManyFuckingPredictUpdateFailed = 0;
 
 namespace INS{
 
@@ -17,11 +21,61 @@ ESKF_INS::ESKF_INS(INSMechanization *mech, INSESKF *eskf, GNSSMeasurementModel *
 {}
 
 INS_Error ESKF_INS::init() {
+    static constexpr Eigen::Index POSITION_ID = 0;
+    static constexpr Eigen::Index VELOCITY_ID = 3;
+    static constexpr Eigen::Index ATTITUDE_ID = 6;
+    static constexpr Eigen::Index GYRO_BIAS_ID = 9;
+    static constexpr Eigen::Index ACCEL_BIAS_ID = 12;
+    static constexpr Eigen::Index GYRO_SCALE_ID = 15;
+    static constexpr Eigen::Index ACCEL_SCALE_ID = 18;
+    static constexpr fp64 DEG_TO_RAD = 0.01745329251994329577;
+
     isINSInitialized = false;
 
     if (m_mech == nullptr) return INS_Error::MechanizationNotAvailable;
     if (m_eskf == nullptr) return INS_Error::ESKFNotAvailable;
-    if (!m_eskf->isInitialized()) return INS_Error::ESKFNotInitialized;
+    if (m_gnssModel == nullptr) return INS_Error::GNSSModelNotAvailable;
+
+    // 测试用初始标准差，位置和速度单位分别为m和m/s，姿态单位为rad
+    const Eigen::Vector3d positionStd(0.1, 0.1, 0.2);
+    const Eigen::Vector3d velocityStd(0.05, 0.05, 0.05);
+    const Eigen::Vector3d attitudeStd(
+        0.5 * DEG_TO_RAD,
+        0.5 * DEG_TO_RAD,
+        1.0 * DEG_TO_RAD);
+    const Eigen::Vector3d gyroBiasStd =
+        Eigen::Vector3d::Constant(50.0 * DEG_TO_RAD / 3600.0);
+    const Eigen::Vector3d accelBiasStd = Eigen::Vector3d::Constant(250.0e-5);
+    const Eigen::Vector3d gyroScaleStd = Eigen::Vector3d::Constant(1000.0e-6);
+    const Eigen::Vector3d accelScaleStd = Eigen::Vector3d::Constant(1000.0e-6);
+
+    ESKFStateMatrix initialCovariance = ESKFStateMatrix::Zero();
+    initialCovariance.diagonal().segment<3>(POSITION_ID) = positionStd.array().square().matrix();
+    initialCovariance.diagonal().segment<3>(VELOCITY_ID) = velocityStd.array().square().matrix();
+    initialCovariance.diagonal().segment<3>(ATTITUDE_ID) = attitudeStd.array().square().matrix();
+    initialCovariance.diagonal().segment<3>(GYRO_BIAS_ID) = gyroBiasStd.array().square().matrix();
+    initialCovariance.diagonal().segment<3>(ACCEL_BIAS_ID) = accelBiasStd.array().square().matrix();
+    initialCovariance.diagonal().segment<3>(GYRO_SCALE_ID) = gyroScaleStd.array().square().matrix();
+    initialCovariance.diagonal().segment<3>(ACCEL_SCALE_ID) = accelScaleStd.array().square().matrix();
+
+    ESKFNoiseParameters noiseParameters{};
+    noiseParameters.gyroARW = Eigen::Vector3d::Constant(0.24 * DEG_TO_RAD / 60.0);
+    noiseParameters.accelVRW = Eigen::Vector3d::Constant(0.24 / 60.0);
+    noiseParameters.gyroBiasStd = gyroBiasStd;
+    noiseParameters.accelBiasStd = accelBiasStd;
+    noiseParameters.gyroScaleStd = gyroScaleStd;
+    noiseParameters.accelScaleStd = accelScaleStd;
+    noiseParameters.correlationTime = 3600.0;
+
+    // 测试阶段暂不补偿杆臂，实飞前应替换为GNSS天线相对IMU的实测坐标
+    const Eigen::Vector3f antennaLeverArmBody = Eigen::Vector3f::Zero();
+
+    if (!m_eskf->init(initialCovariance, noiseParameters)) {
+        return INS_Error::ESKFInitializationFailed;
+    }
+    if (!m_gnssModel->init(antennaLeverArmBody)) {
+        return INS_Error::GNSSModelInitializationFailed;
+    }
 
     m_currentNavState.position[0] = LAUNCH_PLACE_LATITUDE_RAD;
     m_currentNavState.position[1] = LAUNCH_PLACE_LONGITUDE_RAD;
@@ -33,9 +87,8 @@ INS_Error ESKF_INS::init() {
 
     m_previousNavState = m_currentNavState;
 
-    m_previousIMUData = IMUData{};
-    m_currentIMUData = IMUData{};
-    isCurrentIMUDataValid = false;
+    m_currentIMUIncrement = IMUIncrement{};
+    isCurrentIMUIncrementValid = false;
 
     m_lastGNSSSequence = 0U;
 
@@ -43,7 +96,7 @@ INS_Error ESKF_INS::init() {
     return INS_Error::OK;
 }
 
-INS_Error ESKF_INS::update(IMU::IMUSample &previousSample, IMU::IMUSample &currentSample, GNSS::GNSSSample *gnssSample){
+INS_Error ESKF_INS::update(const IMUIncrement &imuIncrement, GNSS::GNSSSample *gnssSample){
     if(!isINSInited())return INS_Error::INSNotInited;
     if (m_eskf == nullptr) {
         return INS_Error::ESKFNotAvailable;
@@ -52,48 +105,70 @@ INS_Error ESKF_INS::update(IMU::IMUSample &previousSample, IMU::IMUSample &curre
         return INS_Error::ESKFNotInitialized;
     }
 
-    if(previousSample.timestampCycles <= 0) return INS_Error::IMUNotInited;
-    if(!isCurrentIMUDataValid){
-        INS_TRY(packetIMUData(previousSample, currentSample, m_currentIMUData));
-        isCurrentIMUDataValid = true;
-        return INS_Error::OK;
+    if (!std::isfinite(imuIncrement.dt)) {
+        isCurrentIMUIncrementValid = false;
+        return INS_Error::DeltaTimeTooSmall;
+    }
+    if (imuIncrement.dt <= 0.0) {
+        isCurrentIMUIncrementValid = false;
+        return INS_Error::DeltaTimeTooSmall;
+    }
+    if (imuIncrement.dt > MAX_IMU_DELTA_TIME_S) {
+        isCurrentIMUIncrementValid = false;
+        return INS_Error::DeltaTimeTooLarge;
+    }
+    if (!imuIncrement.dtheta.allFinite()) {
+        isCurrentIMUIncrementValid = false;
+        return INS_Error::IMUNotInited;
+    }
+    if (!imuIncrement.dvelocity.allFinite()) {
+        isCurrentIMUIncrementValid = false;
+        return INS_Error::IMUNotInited;
     }
 
-    IMUData nextIMUData{};
+    IMUIncrement nextIMUIncrement = imuIncrement;
     NavState nextNavState = m_currentNavState;
-
-    INS_TRY(packetIMUData(previousSample, currentSample, nextIMUData));
 
     // 对IMU补偿零偏和比例因子
     if(IS_USE_IMU_OFFSET_COMPENSATION){
-        nextIMUData.dtheta -= nextNavState.imuError.gyroBias_error * nextIMUData.dt;
-        nextIMUData.dvelocity -= nextNavState.imuError.accelBias_error* nextIMUData.dt;
+        nextIMUIncrement.dtheta -= nextNavState.imuError.gyroBias_error * nextIMUIncrement.dt;
+        nextIMUIncrement.dvelocity -= nextNavState.imuError.accelBias_error * nextIMUIncrement.dt;
 
         const Eigen::Vector3d gyroScaleFactor =
             Eigen::Vector3d::Ones() + nextNavState.imuError.gyroScale_error;
         const Eigen::Vector3d accelScaleFactor =
             Eigen::Vector3d::Ones() + nextNavState.imuError.accelScale_error;
 
-        nextIMUData.dtheta =
-            nextIMUData.dtheta.cwiseQuotient(gyroScaleFactor);
-        nextIMUData.dvelocity =
-            nextIMUData.dvelocity.cwiseQuotient(accelScaleFactor);
+        nextIMUIncrement.dtheta =
+            nextIMUIncrement.dtheta.cwiseQuotient(gyroScaleFactor);
+        nextIMUIncrement.dvelocity =
+            nextIMUIncrement.dvelocity.cwiseQuotient(accelScaleFactor);
+    }
+
+    if(!isCurrentIMUIncrementValid){
+        m_currentIMUIncrement = nextIMUIncrement;
+        isCurrentIMUIncrementValid = true;
+        return INS_Error::OK;
     }
 
     // 机械编排
-    if(!m_mech->updateVelocity(m_currentNavState, nextNavState, m_currentIMUData, nextIMUData)){
+    if(!m_mech->updateVelocity(m_currentNavState, nextNavState, m_currentIMUIncrement, nextIMUIncrement)){
+        howManyFuckingVelocityUpdateFailed++;
         return INS_Error::UpdateVelocityFailed;
     }
-    if(!m_mech->updatePosition(m_currentNavState, nextNavState, nextIMUData)){
+    if(!m_mech->updatePosition(m_currentNavState, nextNavState, nextIMUIncrement)){
+        howManyFuckingPositionUpdateFailed++;
         return INS_Error::UpdatePositionFailed;
     }
-    if(!m_mech->updateAttitude(m_currentNavState, nextNavState, m_currentIMUData, nextIMUData)){
+    if(!m_mech->updateAttitude(m_currentNavState, nextNavState, m_currentIMUIncrement, nextIMUIncrement)){
+        howManyFuckingAttitudeUpdateFailed++;
         return INS_Error::UpdateAttitudeFailed;
     }
 
     // ESKF Prediction步
     if(IS_USE_ESKF_PREDICTION){
-        if (!m_eskf->predict(m_currentNavState, nextIMUData)) {
+        if (!m_eskf->predict(m_currentNavState, nextIMUIncrement)) {
+            howManyFuckingPredictUpdateFailed++;
             return INS_Error::ESKFPredictFailed;
         }
     }
@@ -121,12 +196,15 @@ INS_Error ESKF_INS::update(IMU::IMUSample &previousSample, IMU::IMUSample &curre
         }
     }
 
-    m_previousIMUData = m_currentIMUData;
-    m_currentIMUData = nextIMUData;
+    m_currentIMUIncrement = nextIMUIncrement;
     m_previousNavState = m_currentNavState;
     m_currentNavState = nextNavState;
 
     return INS_Error::OK;
+}
+
+const NavState &ESKF_INS::getCurrentNavState() const {
+    return m_currentNavState;
 }
 
 bool ESKF_INS::isGNSSSampleAvailableForCorrection(const GNSS::GNSSSample *gnssSample) const {
@@ -158,17 +236,6 @@ bool ESKF_INS::isGNSSSampleAvailableForCorrection(const GNSS::GNSSSample *gnssSa
     if (dataAgeSeconds > MAX_GNSS_DATA_AGE_S) return false;
 
     return true;
-}
-
-INS_Error ESKF_INS::packetIMUData(const IMU::IMUSample &previousSample, const IMU::IMUSample &currentSample, IMUData &IMUData){
-    const uint32_t deltaCycles = currentSample.timestampCycles - previousSample.timestampCycles;
-    const fp64 deltaTime = static_cast<fp64>(deltaCycles) / static_cast<fp64>(SystemCoreClock); // 转换为秒
-    if(deltaTime <= 0) return INS_Error::DeltaTimeTooSmall;
-    if(deltaTime > MAX_IMU_DELTA_TIME_S) return INS_Error::DeltaTimeTooLarge;
-    IMUData.dt = deltaTime;
-    IMUData.dtheta = (previousSample.angularRateBody.cast<fp64>() + currentSample.angularRateBody.cast<fp64>()) * 0.5 * deltaTime;
-    IMUData.dvelocity = (previousSample.specificForceBody.cast<fp64>() + currentSample.specificForceBody.cast<fp64>()) * 0.5 * deltaTime;
-    return INS_Error::OK;
 }
 
 INS_Error ESKF_INS::errorFeedback(NavState &nextNavState){

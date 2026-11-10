@@ -109,8 +109,6 @@ void NEOM9N_UART::parseNavPvt(uint8_t *payload, uint16_t length){
     m_time_s   = payload[10];
     m_fixType  = (GNSS_FixType)payload[20];
     m_num_satellites = payload[23];
-    // TODO: 临时诊断代码，确认实际定位状态后删除
-    printf("NAV-PVT fixType=%u numSV=%u\r\n", payload[20], payload[23]);
     int32_t lon_raw = readI4(&payload[24]);
     m_longitude = lon_raw;
     int32_t lat_raw = readI4(&payload[28]);

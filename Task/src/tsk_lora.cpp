@@ -11,7 +11,7 @@ extern "C" void lora_task(void *argument)
     TickType_t last_wake_time = xTaskGetTickCount();
     while (true)
     {
-        rocket.communicationLoop();
+        // rocket.communicationLoop();
         vTaskDelayUntil(&last_wake_time, 10);
     }
 }

@@ -25,10 +25,10 @@ public:
     INSMechanization() = default;
     ~INSMechanization() = default;
 
-    bool insMech(const NavState &navState_previous, NavState &navState_current,const IMUData &imuData_previous, const IMUData &imuData_current);
+    bool insMech(const NavState &navState_previous, NavState &navState_current,const IMUIncrement &imuIncrement_previous, const IMUIncrement &imuIncrement_current);
 
-    bool updateVelocity(const NavState &navState_previous, NavState &navState_current, const IMUData &imuData_previous, const IMUData &imuData_current);
-    bool updatePosition(const NavState &navState_previous, NavState &navState_current, const IMUData &imuData_current);
-    bool updateAttitude(const NavState &navState_previous, NavState &navState_current, const IMUData &imuData_previous, const IMUData &imuData_current);
+    bool updateVelocity(const NavState &navState_previous, NavState &navState_current, const IMUIncrement &imuIncrement_previous, const IMUIncrement &imuIncrement_current);
+    bool updatePosition(const NavState &navState_previous, NavState &navState_current, const IMUIncrement &imuIncrement_current);
+    bool updateAttitude(const NavState &navState_previous, NavState &navState_current, const IMUIncrement &imuIncrement_previous, const IMUIncrement &imuIncrement_current);
 
 };

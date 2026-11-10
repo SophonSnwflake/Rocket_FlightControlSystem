@@ -45,6 +45,11 @@ file(GLOB_RECURSE RSL_ALGORITHM_INS_GNSS_MODEL_SOURCES
     "Algorithm/Ins/GNSSMeasurementModel/src/*.cpp"
 )
 
+file(GLOB_RECURSE RSL_ALGORITHM_INS_IMU_PREINTEGRATOR_SOURCES
+    "Algorithm/Ins/IMUPreintegrator/src/*.c"
+    "Algorithm/Ins/IMUPreintegrator/src/*.cpp"
+)
+
 file(GLOB_RECURSE RSL_COMMAND_SOURCES
     "Command/src/*.c"
     "Command/src/*.cpp"
@@ -129,6 +134,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${RSL_ALGORITHM_INS_MECHANIZATION_SOURCES}
     ${RSL_ALGORITHM_INS_ESKF_SOURCES}
     ${RSL_ALGORITHM_INS_GNSS_MODEL_SOURCES}
+    ${RSL_ALGORITHM_INS_IMU_PREINTEGRATOR_SOURCES}
 
     ${RSL_DEVICE_BAROMETER_SOURCES}
     ${RSL_DEVICE_BUZZER_SOURCES}
@@ -157,6 +163,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     Algorithm/Ins/common
     Algorithm/Ins/ErrorStateKalmanFilter/inc
     Algorithm/Ins/GNSSMeasurementModel/inc
+    Algorithm/Ins/IMUPreintegrator/inc
     Algorithm/Ins/Mechanization/inc
     Algorithm/Ins/Types/inc
 

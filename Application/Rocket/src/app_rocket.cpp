@@ -1,14 +1,20 @@
 #include "app_rocket.hpp"
+#include "app_navigation.hpp"
 #include "agr_telemetry_protocal.hpp"
 #include "app_logger.hpp"
 #include "dvc_barometer.hpp"
 #include "dvc_vofa.hpp"
+#include "earth.h"
 #include "mid_logger.hpp"
+#include "mid_ins.hpp"
+#include "alg_ins_imuPreintegrator.hpp"
 #include "para_rocket.hpp"
 #include "stm32f4xx_hal_gpio.h"
 #include "math_const.h"
 
 #include "stm32f4xx_hal_gpio.h"
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdarg>
@@ -39,7 +45,8 @@ extern volatile uint32_t g_callback_count;
 
 Rocket::Rocket(IMU *imu,
             AHRS *ahrs,
-            INS::ESKF_INS *ins,
+            Application::Navigation *navigation,
+            INS::IMUPreintegrator *imuPreintegrator,
             GNSS *gnss, 
             W25Q128 *flash, 
             SX1268 *lora, 
@@ -54,7 +61,8 @@ Rocket::Rocket(IMU *imu,
             VoltageProbe *voltageProbe):
     m_imu(imu),
     m_ahrs(ahrs),
-    m_ins(ins),
+    m_navigation(navigation),
+    m_imuPreintegrator(imuPreintegrator),
     m_gnss(gnss),
     m_flash(flash),
     m_lora(lora),
@@ -96,7 +104,7 @@ Rocket::RocketError Rocket::Init(){
     printf("Rocket Flight Control System is Online!\r\n");
     printf("Software Git Hash:\r\n");
     printf("After\r\n");
-    printf("4f279cb27f4562ec366c66d3eea6c4bb83fce3f5\r\n");
+    printf("06e7795a5377875fb4c321a98fa1218402c9d445\r\n");
     
     m_buzzer->handleChipping(true);
     osDelay(80U);
@@ -107,10 +115,12 @@ Rocket::RocketError Rocket::Init(){
     m_buzzer->handleChipping(false);
 
     if (initIMU() != RocketError::OK) return RocketError::DeviceError;
-    if (initLoRa() != RocketError::OK) return RocketError::DeviceError;
+    if (initIMUPreintegrator() != RocketError::OK) return RocketError::DeviceError;
+    // if (initLoRa() != RocketError::OK) return RocketError::DeviceError;
     if (initGNSS() != RocketError::OK) return RocketError::DeviceError;
-    if (initFlash() != RocketError::OK) return RocketError::DeviceError;
-    if (initBarometer() != RocketError::OK) return RocketError::DeviceError;
+    if (initINS() != RocketError::OK) return RocketError::DeviceError;
+    // if (initFlash() != RocketError::OK) return RocketError::DeviceError;
+    // if (initBarometer() != RocketError::OK) return RocketError::DeviceError;
     
     printf("DeviceInitSuccess!\r\n");
     loraPrintf("DeviceInitSuccess!\r\n");
@@ -156,6 +166,28 @@ Rocket::RocketError Rocket::initIMU(){
         printf("IMUInitFailed!\r\n");
         return RocketError::DeviceError;
     }
+}
+
+Rocket::RocketError Rocket::initIMUPreintegrator(){
+    if (m_imuPreintegrator == nullptr) {
+        printf("IMUPreintegratorInitFailed!\r\n");
+        return RocketError::DeviceError;
+    }
+
+    INS::IMUPreintegratorConfig imuPreintegratorConfig{};
+    imuPreintegratorConfig.timestampFrequencyHz = SystemCoreClock;
+    imuPreintegratorConfig.intervalsPerIncrement = 5U;
+    imuPreintegratorConfig.minimumSampleInterval = 0.0001;
+    imuPreintegratorConfig.maximumSampleInterval = 0.01;
+    imuPreintegratorConfig.validateSequence = false;
+
+    if (!m_imuPreintegrator->init(imuPreintegratorConfig)) {
+        printf("IMUPreintegratorInitFailed!\r\n");
+        return RocketError::DeviceError;
+    }
+
+    printf("IMUPreintegratorInitSuccess!\r\n");
+    return RocketError::OK;
 }
 
 Rocket::RocketError Rocket::initFlash(){
@@ -220,6 +252,22 @@ Rocket::RocketError Rocket::initBarometer(){
     return RocketError::OK;
 }
 
+Rocket::RocketError Rocket::initINS(){
+    if (m_navigation == nullptr) {
+        printf("INSInitFailed!\r\n");
+        return RocketError::DeviceError;
+    }
+
+    const Application::Navigation::NavigationError result = m_navigation->init();
+    if (result != Application::Navigation::NavigationError::OK) {
+        printf("INSInitFailed:%u\r\n", static_cast<unsigned int>(result));
+        return RocketError::DeviceError;
+    }
+
+    printf("INSInitSuccess!\r\n");
+    return RocketError::OK;
+}
+
 //==============================================================================
 // 会话逻辑循环
 //==============================================================================
@@ -230,6 +278,83 @@ void Rocket::rocketTotalLoop(){
             handlePendingUARTCommand();
             handlePendingLoRaCommand();
         }
+
+        // // TODO:测量INS耗时，测完删除
+        // const uint32_t insLoopStartCycles = DWT_GetTimestamp();
+        // // TODO:测量INS耗时，测完删除
+
+        INSLoop();
+
+        // TODO: INSVOFA
+        static constexpr TickType_t INS_VOFA_SEND_PERIOD_TICKS = pdMS_TO_TICKS(10U);
+        const TickType_t currentTick = xTaskGetTickCount();
+        if (m_vofa != nullptr &&
+            m_navigation != nullptr &&
+            m_navigation->isInitialized() &&
+            m_hasLatestINSAccelBody &&
+            currentTick - m_lastINSVOFASendTick >= INS_VOFA_SEND_PERIOD_TICKS) {
+            const NavState *navStatePointer = m_navigation->getCurrentNavState();
+            const NavState &navState = *navStatePointer;
+            const fp64 attitudeNorm = navState.attitude.norm();
+            if (navState.position.allFinite() &&
+                navState.velocity.allFinite() &&
+                navState.attitude.coeffs().allFinite() &&
+                std::isfinite(attitudeNorm) &&
+                attitudeNorm > 1e-8 &&
+                m_latestINSAccelBody.allFinite()) {
+                if (!m_hasINSVOFAOrigin) {
+                    m_insVOFAOriginBLH = navState.position;
+                    m_hasINSVOFAOrigin = true;
+                }
+
+                const Eigen::Vector3d positionNED =
+                    Earth::global2local(m_insVOFAOriginBLH, navState.position);
+                if (positionNED.allFinite()) {
+                    const Eigen::Matrix3d bodyToNED =
+                        navState.attitude.normalized().toRotationMatrix();
+                    const fp64 pitchSine =
+                        std::clamp(-bodyToNED(2, 0), -1.0, 1.0);
+                    const Eigen::Vector3d eulerAngleDegree(
+                        std::atan2(bodyToNED(2, 1), bodyToNED(2, 2)) * 180.0 / MATH_PI,
+                        std::asin(pitchSine) * 180.0 / MATH_PI,
+                        std::atan2(bodyToNED(1, 0), bodyToNED(0, 0)) * 180.0 / MATH_PI
+                    );
+
+                    // 通道0~2：相对初始位置的NED位移，X向北、Y向东、Z向地，单位m
+                    m_vofa->setChannel(0, static_cast<fp32>(positionNED[0]));
+                    m_vofa->setChannel(1, static_cast<fp32>(positionNED[1]));
+                    m_vofa->setChannel(2, static_cast<fp32>(positionNED[2]));
+
+                    // 通道3~5：NED速度(m/s)
+                    m_vofa->setChannel(3, static_cast<fp32>(navState.velocity[0]));
+                    m_vofa->setChannel(4, static_cast<fp32>(navState.velocity[1]));
+                    m_vofa->setChannel(5, static_cast<fp32>(navState.velocity[2]));
+
+                    // 通道6~8：机体系到NED导航系的欧拉角(roll, pitch, yaw)，单位°
+                    m_vofa->setChannel(6, static_cast<fp32>(eulerAngleDegree[0]));
+                    m_vofa->setChannel(7, static_cast<fp32>(eulerAngleDegree[1]));
+                    m_vofa->setChannel(8, static_cast<fp32>(eulerAngleDegree[2]));
+
+                    // 通道9~11：经过静态标定和安装旋转后的机体系比力(m/s^2)
+                    m_vofa->setChannel(9, m_latestINSAccelBody[0]);
+                    m_vofa->setChannel(10, m_latestINSAccelBody[1]);
+                    m_vofa->setChannel(11, m_latestINSAccelBody[2]);
+
+                    if (m_vofa->voFaLoop()) {
+                        m_lastINSVOFASendTick = currentTick;
+                    }
+                }
+            }
+        }
+        // TODO: INSVOFA
+
+        // // TODO:测量INS耗时，测完删除
+        // m_lastINSLoopExecutionCycles = DWT_GetTimestamp() - insLoopStartCycles;
+        // if (m_lastINSLoopExecutionCycles > m_maxINSLoopExecutionCycles) {
+        //     m_maxINSLoopExecutionCycles = m_lastINSLoopExecutionCycles;
+        // }
+        // // TODO:测量INS耗时，测完删除
+
         // phaseSelect();
         // parachuteLoop();
         // barometerLoop();
@@ -239,9 +364,29 @@ void Rocket::rocketTotalLoop(){
         // logPowerMessageLoop();
         // logSystemHealthMessageLoop();
         // buzzerLoop();
-        // m_vofa->voFaLoop();
         
         m_nowTimeus = getTimestampUs();
+
+        // // TODO:测量INS耗时，测完删除
+        // static constexpr uint64_t INS_LOOP_TIME_PRINT_PERIOD_US = 1000000ULL;
+        // if (SystemCoreClock != 0U &&
+        //     m_nowTimeus - m_lastINSLoopTimePrintUs >= INS_LOOP_TIME_PRINT_PERIOD_US) {
+        //     m_lastINSLoopTimePrintUs = m_nowTimeus;
+
+        //     const uint32_t lastExecutionTimeUs = static_cast<uint32_t>(
+        //         static_cast<uint64_t>(m_lastINSLoopExecutionCycles) * 1000000ULL /
+        //         static_cast<uint64_t>(SystemCoreClock));
+        //     const uint32_t maxExecutionTimeUs = static_cast<uint32_t>(
+        //         static_cast<uint64_t>(m_maxINSLoopExecutionCycles) * 1000000ULL /
+        //         static_cast<uint64_t>(SystemCoreClock));
+
+        //     printf("INSLoop time: last=%lu us, max=%lu us\r\n",
+        //            static_cast<unsigned long>(lastExecutionTimeUs),
+        //            static_cast<unsigned long>(maxExecutionTimeUs));
+        //     m_maxINSLoopExecutionCycles = 0U;
+        // }
+        // // TODO:测量INS耗时，测完删除
+
     } else{
         static bool buzzerOn = false;
         m_nowTimeus = getTimestampUs();
@@ -591,13 +736,28 @@ void Rocket::imuLoop()
         return;
     }
 
-    // AHRSLoop();
-    
-    if (!m_hasPreviousIMUSample) {
-        m_previousIMUSample = m_currentIMUSample;
-        m_hasPreviousIMUSample = true;
-        return;
+    IMUIncrement completedIncrement{};
+    const INS::IMUPreintegrationResult preintegrationResult =
+        m_imuPreintegrator->pushSample(m_currentIMUSample, completedIncrement);
+
+    switch (preintegrationResult) {
+        case INS::IMUPreintegrationResult::Accumulating:
+            break;
+
+        case INS::IMUPreintegrationResult::IncrementReady:
+            if (m_navigation == nullptr ||
+                !m_navigation->publishIMUIncrement(completedIncrement)) {
+                ++m_imuPreintegrationErrorCount;
+            }
+            break;
+
+        default:
+            ++m_imuPreintegrationErrorCount;
+            break;
     }
+
+    // AHRSLoop();
+
     m_imuSequence ++;
     m_rawAccel = m_imu->getAccelRawData();
 
@@ -665,7 +825,7 @@ void Rocket::imuLoop()
     //         handleLogAHRSMessage(getTimestampUs());
     //         break;
     //     }
-    
+
 
     //     case LaunchPhase::LANDED:
     //     {
@@ -698,11 +858,20 @@ void Rocket::AHRSLoop(){
     }
 
     m_eulerAngle_rad = eulerAngle;
-}
+}                           
 
 void Rocket::GNSSLoop(){
-    if(!m_gnss->isHasNewData()) return;
+    if(!m_gnss->isHasNewData()) return;    
     m_gnss->handleGNSSMessageLoop();
+
+    GNSS::GNSSSample gnssSample{};
+    if (m_gnss->readSample(gnssSample)) {
+        if (m_navigation == nullptr ||
+            !m_navigation->publishGNSSSample(gnssSample)) {
+            ++m_gnssErrorCount;
+        }
+    }
+
     m_velocity_mm_s = m_gnss->getVelocityDown();
     uint32_t temTimeStamp_ms = static_cast<uint32_t>(getTimestampUs() / 1000ULL);
     if(temTimeStamp_ms - m_lastGNSSTelemetryTime_ms >= TELEMETRY_GNSS_PERIOD_MS){
@@ -754,6 +923,21 @@ void Rocket::GNSSLoop(){
     }
     if (!m_logger->isStarted()) return;
     handleLogGNSSMessage(getTimestampUs());
+}
+
+void Rocket::INSLoop(){
+    if (m_navigation == nullptr) return;
+    if (m_navigation->isInitialized() == false) return;
+
+    const INS::INS_Error result = m_navigation->update();
+    if (result != INS::INS_Error::OK) return;
+
+    const Eigen::Vector3d *latestSpecificForceBody =
+        m_navigation->getLatestSpecificForceBody();
+    if (latestSpecificForceBody == nullptr) return;
+
+    m_latestINSAccelBody = latestSpecificForceBody->cast<fp32>();
+    m_hasLatestINSAccelBody = true;
 }
 
 void Rocket::sendSystemTelemetryPayloadLoop(){

@@ -82,7 +82,7 @@ const osThreadAttr_t IMU_attributes = {
   .cb_size = sizeof(IMUControlBlock),
   .stack_mem = &IMUBuffer[0],
   .stack_size = sizeof(IMUBuffer),
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityHigh,
 };
 /* Definitions for LOG */
 osThreadId_t LOGHandle;
