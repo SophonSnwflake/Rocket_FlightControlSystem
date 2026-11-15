@@ -40,6 +40,9 @@ add_executable(${CMAKE_PROJECT_NAME})
 # Add STM32CubeMX generated sources
 add_subdirectory(CubeMX_BSP/cmake/stm32cubemx)
 
+# SEGGER RTT/SystemView target-side recorder
+include(cmake/segger-systemview.cmake)
+
 # RSL: RocketStandardLibrary (algorithms + device drivers)
 add_subdirectory(RSL)
 

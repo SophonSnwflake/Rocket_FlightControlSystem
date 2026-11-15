@@ -43,6 +43,24 @@ bool GNSS::readSample(GNSSSample &sample){
     return hasSample;
 }
 
+bool GNSS::isDataStreamActive() const{
+    TickType_t lastValidMessageTick = 0U;
+    bool hasReceivedValidMessage = false;
+
+    taskENTER_CRITICAL();
+    lastValidMessageTick = m_lastValidMessageTick;
+    hasReceivedValidMessage = m_hasReceivedValidMessage;
+    taskEXIT_CRITICAL();
+
+    if (!hasReceivedValidMessage) return false;
+
+    const TickType_t currentTick = xTaskGetTickCount();
+    const TickType_t dataAgeTicks = currentTick - lastValidMessageTick;
+    const TickType_t timeoutTicks = pdMS_TO_TICKS(DATA_STREAM_TIMEOUT_MS);
+
+    return dataAgeTicks <= timeoutTicks;
+}
+
 NEOM9N_UART::NEOM9N_UART(){
     m_para_size = 0;
 }
@@ -181,6 +199,8 @@ void NEOM9N_UART::parseNavPvt(uint8_t *payload, uint16_t length){
 
     taskENTER_CRITICAL();
     m_latestSample = nextSample;
+    m_lastValidMessageTick = xTaskGetTickCount();
+    m_hasReceivedValidMessage = true;
     m_hasUnreadSample = true;
     taskEXIT_CRITICAL();
 }

@@ -93,6 +93,10 @@ protected:
     GNSSSample m_latestSample{};
     uint32_t m_sampleSequence = 0U;
     bool m_hasUnreadSample = false;
+    TickType_t m_lastValidMessageTick = 0U;
+    bool m_hasReceivedValidMessage = false;
+
+    static constexpr uint32_t DATA_STREAM_TIMEOUT_MS = 1000U;
 
 public:
     GNSS();
@@ -102,6 +106,7 @@ public:
     virtual void receiveGNSSMessageFromUART(uint8_t *pRxData, uint16_t rxDataLength) = 0;
     virtual bool isHasNewData() = 0;
     bool readSample(GNSSSample &sample);
+    bool isDataStreamActive() const;
     // virtual void 
     uint8_t nmea_checksum(const char *sentence);
     int32_t getLatitude(){return m_latitude;}

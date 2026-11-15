@@ -1,0 +1,170 @@
+diff --git a/CubeMX_BSP/Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h b/CubeMX_BSP/Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
+index ceb469a..e31a778 100644
+--- a/CubeMX_BSP/Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
++++ b/CubeMX_BSP/Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
+@@ -416,6 +416,22 @@ hold explicit before calling the code. */
+ 	#define tracePOST_MOVED_TASK_TO_READY_STATE( pxTCB )
+ #endif
+ 
++#ifndef traceREADDED_TASK_TO_READY_STATE
++	#define traceREADDED_TASK_TO_READY_STATE( pxTCB ) traceMOVED_TASK_TO_READY_STATE( pxTCB )
++#endif
++
++#ifndef traceMOVED_TASK_TO_DELAYED_LIST
++	#define traceMOVED_TASK_TO_DELAYED_LIST()
++#endif
++
++#ifndef traceMOVED_TASK_TO_OVERFLOW_DELAYED_LIST
++	#define traceMOVED_TASK_TO_OVERFLOW_DELAYED_LIST()
++#endif
++
++#ifndef traceMOVED_TASK_TO_SUSPENDED_LIST
++	#define traceMOVED_TASK_TO_SUSPENDED_LIST( pxTCB )
++#endif
++
+ #ifndef traceQUEUE_CREATE
+ 	#define traceQUEUE_CREATE( pxNewQueue )
+ #endif
+@@ -660,6 +676,18 @@ hold explicit before calling the code. */
+ 	#define traceTASK_NOTIFY_GIVE_FROM_ISR()
+ #endif
+ 
++#ifndef traceISR_EXIT_TO_SCHEDULER
++	#define traceISR_EXIT_TO_SCHEDULER()
++#endif
++
++#ifndef traceISR_EXIT
++	#define traceISR_EXIT()
++#endif
++
++#ifndef traceISR_ENTER
++	#define traceISR_ENTER()
++#endif
++
+ #ifndef traceSTREAM_BUFFER_CREATE_FAILED
+ 	#define traceSTREAM_BUFFER_CREATE_FAILED( xIsMessageBuffer )
+ #endif
+diff --git a/CubeMX_BSP/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/port.c b/CubeMX_BSP/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/port.c
+index 89a912c..e459fc1 100644
+--- a/CubeMX_BSP/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/port.c
++++ b/CubeMX_BSP/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/port.c
+@@ -492,14 +492,20 @@ void xPortSysTickHandler( void )
+ 	save and then restore the interrupt mask value as its value is already
+ 	known. */
+ 	portDISABLE_INTERRUPTS();
++	traceISR_ENTER();
+ 	{
+ 		/* Increment the RTOS tick. */
+ 		if( xTaskIncrementTick() != pdFALSE )
+ 		{
++			traceISR_EXIT_TO_SCHEDULER();
+ 			/* A context switch is required.  Context switching is performed in
+ 			the PendSV interrupt.  Pend the PendSV interrupt. */
+ 			portNVIC_INT_CTRL_REG = portNVIC_PENDSVSET_BIT;
+ 		}
++		else
++		{
++			traceISR_EXIT();
++		}
+ 	}
+ 	portENABLE_INTERRUPTS();
+ }
+diff --git a/CubeMX_BSP/Middlewares/Third_Party/FreeRTOS/Source/tasks.c b/CubeMX_BSP/Middlewares/Third_Party/FreeRTOS/Source/tasks.c
+index f6a6a9b..1227d58 100644
+--- a/CubeMX_BSP/Middlewares/Third_Party/FreeRTOS/Source/tasks.c
++++ b/CubeMX_BSP/Middlewares/Third_Party/FreeRTOS/Source/tasks.c
+@@ -220,6 +220,13 @@ count overflows. */
+ 	taskRECORD_READY_PRIORITY( ( pxTCB )->uxPriority );												\
+ 	vListInsertEnd( &( pxReadyTasksLists[ ( pxTCB )->uxPriority ] ), &( ( pxTCB )->xStateListItem ) ); \
+ 	tracePOST_MOVED_TASK_TO_READY_STATE( pxTCB )
++
++/* Reinsert a task that was already ready, for example after a priority change. */
++#define prvReaddTaskToReadyList( pxTCB )															\
++	traceREADDED_TASK_TO_READY_STATE( pxTCB );													\
++	taskRECORD_READY_PRIORITY( ( pxTCB )->uxPriority );											\
++	vListInsertEnd( &( pxReadyTasksLists[ ( pxTCB )->uxPriority ] ), &( ( pxTCB )->xStateListItem ) ); \
++	tracePOST_MOVED_TASK_TO_READY_STATE( pxTCB )
+ /*-----------------------------------------------------------*/
+ 
+ /*
+@@ -1672,7 +1679,7 @@ static void prvAddNewTaskToReadyList( TCB_t *pxNewTCB )
+ 					{
+ 						mtCOVERAGE_TEST_MARKER();
+ 					}
+-					prvAddTaskToReadyList( pxTCB );
++					prvReaddTaskToReadyList( pxTCB );
+ 				}
+ 				else
+ 				{
+@@ -1734,6 +1741,7 @@ static void prvAddNewTaskToReadyList( TCB_t *pxNewTCB )
+ 				mtCOVERAGE_TEST_MARKER();
+ 			}
+ 
++			traceMOVED_TASK_TO_SUSPENDED_LIST( pxTCB );
+ 			vListInsertEnd( &xSuspendedTaskList, &( pxTCB->xStateListItem ) );
+ 
+ 			#if( configUSE_TASK_NOTIFICATIONS == 1 )
+@@ -4056,7 +4064,7 @@ TCB_t *pxTCB;
+ 
+ 					/* Inherit the priority before being moved into the new list. */
+ 					pxMutexHolderTCB->uxPriority = pxCurrentTCB->uxPriority;
+-					prvAddTaskToReadyList( pxMutexHolderTCB );
++					prvReaddTaskToReadyList( pxMutexHolderTCB );
+ 				}
+ 				else
+ 				{
+@@ -4146,7 +4154,7 @@ TCB_t *pxTCB;
+ 					any other purpose if this task is running, and it must be
+ 					running to give back the mutex. */
+ 					listSET_LIST_ITEM_VALUE( &( pxTCB->xEventListItem ), ( TickType_t ) configMAX_PRIORITIES - ( TickType_t ) pxTCB->uxPriority ); /*lint !e961 MISRA exception as the casts are only redundant for some ports. */
+-					prvAddTaskToReadyList( pxTCB );
++					prvReaddTaskToReadyList( pxTCB );
+ 
+ 					/* Return true to indicate that a context switch is required.
+ 					This is only actually required in the corner case whereby
+@@ -4258,7 +4266,7 @@ TCB_t *pxTCB;
+ 							mtCOVERAGE_TEST_MARKER();
+ 						}
+ 
+-						prvAddTaskToReadyList( pxTCB );
++						prvReaddTaskToReadyList( pxTCB );
+ 					}
+ 					else
+ 					{
+@@ -5208,6 +5216,7 @@ const TickType_t xConstTickCount = xTickCount;
+ 			/* Add the task to the suspended task list instead of a delayed task
+ 			list to ensure it is not woken by a timing event.  It will block
+ 			indefinitely. */
++			traceMOVED_TASK_TO_SUSPENDED_LIST( pxCurrentTCB );
+ 			vListInsertEnd( &xSuspendedTaskList, &( pxCurrentTCB->xStateListItem ) );
+ 		}
+ 		else
+@@ -5224,12 +5233,14 @@ const TickType_t xConstTickCount = xTickCount;
+ 			{
+ 				/* Wake time has overflowed.  Place this item in the overflow
+ 				list. */
++				traceMOVED_TASK_TO_OVERFLOW_DELAYED_LIST();
+ 				vListInsert( pxOverflowDelayedTaskList, &( pxCurrentTCB->xStateListItem ) );
+ 			}
+ 			else
+ 			{
+ 				/* The wake time has not overflowed, so the current block list
+ 				is used. */
++				traceMOVED_TASK_TO_DELAYED_LIST();
+ 				vListInsert( pxDelayedTaskList, &( pxCurrentTCB->xStateListItem ) );
+ 
+ 				/* If the task entering the blocked state was placed at the
+@@ -5259,11 +5270,13 @@ const TickType_t xConstTickCount = xTickCount;
+ 		if( xTimeToWake < xConstTickCount )
+ 		{
+ 			/* Wake time has overflowed.  Place this item in the overflow list. */
++			traceMOVED_TASK_TO_OVERFLOW_DELAYED_LIST();
+ 			vListInsert( pxOverflowDelayedTaskList, &( pxCurrentTCB->xStateListItem ) );
+ 		}
+ 		else
+ 		{
+ 			/* The wake time has not overflowed, so the current block list is used. */
++			traceMOVED_TASK_TO_DELAYED_LIST();
+ 			vListInsert( pxDelayedTaskList, &( pxCurrentTCB->xStateListItem ) );
+ 
+ 			/* If the task entering the blocked state was placed at the head of the

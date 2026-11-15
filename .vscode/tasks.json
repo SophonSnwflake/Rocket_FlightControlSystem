@@ -35,6 +35,25 @@
             "command": "${command:eide.project.clean}",
             "group": "build",
             "problemMatcher": []
+        },
+        {
+            "label": "wait for J-Link Wi-Fi",
+            "type": "shell",
+            "command": "C:/WINDOWS/System32/WindowsPowerShell/v1.0/powershell.exe",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "${workspaceFolder}/.vscode/wait-jlink-wifi.ps1",
+                "-Address",
+                "10.111.97.77",
+                "-Port",
+                "19020",
+                "-TimeoutSeconds",
+                "60"
+            ],
+            "problemMatcher": []
         }
     ]
 }

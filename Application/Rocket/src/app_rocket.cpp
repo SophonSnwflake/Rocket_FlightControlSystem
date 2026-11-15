@@ -279,6 +279,8 @@ void Rocket::rocketTotalLoop(){
             handlePendingLoRaCommand();
         }
 
+        printf("TEST\r\n");
+
         // // TODO:测量INS耗时，测完删除
         // const uint32_t insLoopStartCycles = DWT_GetTimestamp();
         // // TODO:测量INS耗时，测完删除
