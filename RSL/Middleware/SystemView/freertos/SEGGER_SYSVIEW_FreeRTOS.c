@@ -193,9 +193,10 @@ void SYSVIEW_UpdateTask(U32 xHandle, const char* pcTaskName, unsigned uxCurrentP
 *
 *  Function description
 *    Sample each registered task's stack high-water mark from task
-*    context and cache peak usage in bytes. The SystemView task-list
-*    callback only transmits these cached values, so it remains safe to
-*    call from the post-mortem synchronization path.
+*    context and cache peak usage in bytes. Report changes immediately
+*    so live recordings refresh their stack information. The SystemView
+*    task-list callback only reads cached values, so post-mortem
+*    synchronization remains safe from scheduler and interrupt paths.
 */
 void SYSVIEW_UpdateTaskStackUsage(void) {
   U32 FreeBytes;
@@ -209,7 +210,15 @@ void SYSVIEW_UpdateTaskStackUsage(void) {
     } else {
       StackUsage = 0u;
     }
-    _aTasks[n].StackUsage = StackUsage;
+    if (StackUsage != _aTasks[n].StackUsage) {
+      _aTasks[n].StackUsage = StackUsage;
+      SYSVIEW_SendTaskInfo(_aTasks[n].xHandle,
+                           _aTasks[n].pcTaskName,
+                           _aTasks[n].uxCurrentPriority,
+                           _aTasks[n].StackBase,
+                           _aTasks[n].StackSize,
+                           StackUsage);
+    }
   }
 }
 

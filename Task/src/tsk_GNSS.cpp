@@ -16,6 +16,6 @@ extern "C" void GNSS_task(void *argument){
         if(rocket.isInitCompleted()){
             rocket.GNSSLoop();
         }
-        vTaskDelayUntil(&last_wake_time, 200);
+        vTaskDelayUntil(&last_wake_time, 100);
     }
 }

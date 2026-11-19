@@ -58,7 +58,11 @@ public:
     uint8_t velocity : 1;    // 速度有效
     } valid;
 
-protected:
+// TODO: 调试专用
+// protected:
+public:
+// TODO: 调试专用
+
     //位置
     int32_t m_latitude; //纬度（度 * e7）
     int32_t m_longitude; //经度（度 * e7）

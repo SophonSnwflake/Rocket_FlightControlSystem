@@ -90,7 +90,7 @@ INS::INS_Error Navigation::update() {
     }
 
     IMUIncrement imuIncrement{};
-    while (xQueueReceive(m_imuIncrementQueue, &imuIncrement, 0U) == pdPASS) {
+    if (xQueueReceive(m_imuIncrementQueue, &imuIncrement, 0U) == pdPASS) {
         GNSS::GNSSSample *gnssSample = nullptr;
         if (m_hasReferenceIMUIncrement && m_hasPendingGNSSSample) {
             const int32_t imuTimeAfterGNSS = static_cast<int32_t>(

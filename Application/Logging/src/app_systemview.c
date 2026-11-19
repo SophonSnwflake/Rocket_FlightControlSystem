@@ -11,7 +11,9 @@ void AppSystemView_Init(void)
 #if defined(ROCKET_ENABLE_SYSTEMVIEW)
     DWT_Init();
     SEGGER_SYSVIEW_Conf();
+#if SEGGER_SYSVIEW_POST_MORTEM_MODE == 1
     SEGGER_SYSVIEW_Start();
+#endif
 #endif
 }
 

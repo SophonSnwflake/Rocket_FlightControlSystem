@@ -1,6 +1,19 @@
-option(ROCKET_ENABLE_SYSTEMVIEW "Enable SEGGER SystemView post-mortem recording" ON)
+option(ROCKET_ENABLE_SYSTEMVIEW "Enable SEGGER SystemView tracing" ON)
+option(
+    ROCKET_SYSTEMVIEW_POST_MORTEM
+    "Use the post-mortem RAM ring buffer instead of J-Link live RTT recording"
+    OFF
+)
 
 if(ROCKET_ENABLE_SYSTEMVIEW)
+    if(ROCKET_SYSTEMVIEW_POST_MORTEM)
+        set(ROCKET_SYSTEMVIEW_POST_MORTEM_VALUE 1)
+        message(STATUS "SEGGER SystemView mode: post-mortem RAM ring buffer")
+    else()
+        set(ROCKET_SYSTEMVIEW_POST_MORTEM_VALUE 0)
+        message(STATUS "SEGGER SystemView mode: J-Link live RTT")
+    endif()
+
     set(SEGGER_RTT_ROOT
         ${CMAKE_CURRENT_LIST_DIR}/../RSL/Dependence/SEGGER/RTT-8.58.0
     )
@@ -21,6 +34,7 @@ if(ROCKET_ENABLE_SYSTEMVIEW)
     )
     target_compile_definitions(segger_systemview_headers INTERFACE
         ROCKET_ENABLE_SYSTEMVIEW=1
+        SEGGER_SYSVIEW_POST_MORTEM_MODE=${ROCKET_SYSTEMVIEW_POST_MORTEM_VALUE}
     )
 
     add_library(segger_systemview STATIC)

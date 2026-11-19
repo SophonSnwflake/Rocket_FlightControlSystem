@@ -9,13 +9,16 @@ sources are kept separately under `RSL/Dependence/SEGGER/`.
 - SystemView target source: 4.12.0
 - RTT target source: 8.58.0
 - FreeRTOS kernel: 10.3.1, GCC ARM_CM4F port
-- Recording: 4 KiB post-mortem RAM ring buffer
+- Default recording: continuous J-Link RTT with host-controlled start and stop
+- Fallback recording: 4 KiB post-mortem RAM ring buffer selected by CMake
 - Timestamp: DWT CYCCNT divided by 16 (6.25 MHz at 100 MHz CPU clock)
-- Probe workflow: halt with Cortex-Debug/ST-LINK, dump the buffer, then load it
-  into SystemView for offline analysis
+- Live probe workflow: run with J-Link, then connect and record from SystemView
 
-The RTT terminal buffers are intentionally only 16 bytes. The 4 KiB SystemView
-buffer is allocated separately as RTT up-buffer 1.
+RTT channel 0 is reserved for the terminal, and channel 1 carries SystemView
+traffic in both directions. The terminal buffers are intentionally only 16
+bytes. SystemView allocates its own 4 KiB up-buffer and an 8-byte command
+down-buffer in live mode. The optional RTT assembly implementation is not
+vendored, so the project selects the official C fallback implementation.
 
 ## Build integration
 
@@ -27,15 +30,31 @@ buffer is allocated separately as RTT up-buffer 1.
 - a direct dependency from the independent `FreeRTOS` object target to the
   trace headers.
 
-SystemView is enabled by default. It can be disabled for a comparison build:
+SystemView is enabled in live RTT mode by default:
+
+```sh
+cmake --preset Debug -DROCKET_ENABLE_SYSTEMVIEW=ON -DROCKET_SYSTEMVIEW_POST_MORTEM=OFF
+cmake --build --preset Debug
+```
+
+Select the original post-mortem ring buffer for an ST-LINK session with:
+
+```sh
+cmake --preset Debug -DROCKET_ENABLE_SYSTEMVIEW=ON -DROCKET_SYSTEMVIEW_POST_MORTEM=ON
+cmake --build --preset Debug
+```
+
+SystemView can be completely disabled for a comparison build:
 
 ```sh
 cmake --preset Debug -DROCKET_ENABLE_SYSTEMVIEW=OFF
 cmake --build --preset Debug
 ```
 
-With SystemView enabled, `AppSystemView_Init()` starts DWT and recording before
-CubeMX creates the application tasks.
+With SystemView enabled, `AppSystemView_Init()` starts DWT and initializes RTT
+before CubeMX creates the application tasks. Live recording starts only after
+the SystemView host sends its start command. Post-mortem recording still starts
+immediately during initialization.
 
 ## Task stack monitoring
 
@@ -44,9 +63,11 @@ enabled. The SystemView adapter stores the exact stack capacity in bytes and a
 cached peak usage value for each registered task. `LOG` refreshes the cache once
 per second with `uxTaskGetStackHighWaterMark()` from normal task context.
 
-The periodic post-mortem metadata callback only transmits cached values; it does
-not scan task stacks from a scheduler or interrupt trace path. SystemView is
-given standard stack fields with these units:
+When a sampled peak changes, the LOG task sends updated task information so a
+live recording refreshes its Stack Information column. The post-mortem metadata
+callback only transmits cached values; it does not scan task stacks from a
+scheduler or interrupt trace path. SystemView is given standard stack fields
+with these units:
 
 - `StackBase`: lowest stack address;
 - `StackSize`: allocated capacity in bytes;
@@ -56,7 +77,52 @@ The idle task is intentionally represented by SystemView's idle context and is
 not included in the task metadata table. The Cortex-M MSP/interrupt stack is
 also outside this FreeRTOS task-stack monitor.
 
+## Live recording with J-Link
+
+1. Configure and build the live mode shown above.
+2. Flash and run the target with either `J-Link USB + SystemView 实时追踪` or
+   `J-Link Wi-Fi + SystemView 实时追踪` in Cortex-Debug. Continue execution if
+   the debugger stops after reset.
+3. Create a SystemView project and add `build/Debug/rocket_26.elf` as the
+   application ELF file.
+4. Select the J-Link recorder, `STM32F411CE`, SWD, and a 4 MHz interface speed.
+   Select the configured USB serial number or the J-Link IP address.
+5. Locate the RTT control block from the ELF file, or use automatic detection
+   after `AppSystemView_Init()` has executed.
+6. Start and stop recording from SystemView. The commands travel to the target
+   through RTT down-channel 1; events return through up-channel 1.
+
+The dedicated Cortex-Debug profiles disable Live Watch because frequent memory
+polling competes with RTT traffic. If SystemView reports overflow events, first
+keep Live Watch disabled, confirm a stable 4 MHz or faster SWD connection, and
+then reduce the recorded event rate if necessary. Once the connection is
+verified, the 4 KiB buffer may be reduced to reclaim RAM.
+
 ## Halted-target export with ST-LINK
+
+This workflow is valid only for a build configured with
+`ROCKET_SYSTEMVIEW_POST_MORTEM=ON`.
+
+Quick reference for the Cortex-Debug GDB console:
+
+```gdb
+# First click Pause in Cortex-Debug; do not reset the target.
+source RSL/Middleware/SystemView/scripts/dump-systemview.gdb
+# Resume with the Cortex-Debug Continue button after the file is written.
+```
+
+For a command-line GDB session, the equivalent sequence is:
+
+```gdb
+interrupt
+source RSL/Middleware/SystemView/scripts/dump-systemview.gdb
+continue
+```
+
+The `source` command cannot read the buffer while the target is running. Close
+any previously loaded `build/Debug/systemview-postmortem.bin` recording in
+SystemView before exporting again; otherwise GDB may report `Permission
+denied` when it tries to overwrite the file.
 
 1. Run the firmware under Cortex-Debug and let the event of interest occur.
 2. Pause the target without resetting it. A reset destroys the RAM recording.
@@ -101,6 +167,7 @@ tasks.
 ## Remaining hardware validation
 
 Compilation and static RAM placement are verified. A bench run must still
-confirm that the installed SystemView desktop version accepts the 4.12.0 target
-stream, that the exported file decodes without unknown contexts, and that task
-and interrupt stack margins remain safe with tracing enabled.
+confirm that the installed SystemView desktop version can control and decode
+the live 4.12.0 target stream over both the USB and Wi-Fi J-Link paths, that no
+overflow events occur at the chosen SWD speed, and that task and interrupt
+stack margins remain safe with tracing enabled.

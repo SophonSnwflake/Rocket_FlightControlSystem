@@ -37,13 +37,31 @@
             "device": "STM32F411CE",
             "interface": "swd",
             "serialNumber": "941000024",
-            // "ipAddress": "10.111.97.77",
+            // "ipAddress": "10.111.98.150",
             "serverpath": "C:/Users/jiaha/AppData/Local/SEGGER/JLink_V838_portable/JLinkGDBServerCL.exe",
             "serverArgs": ["-speed", "100", "-vd"],
             "breakAfterReset": true
         },
         {
-            "name": "J-Link Wi-Fi 附加调试（V8.38，已验证）",
+            "name": "J-Link Wi-Fi 烧录并调试（V8.38，已验证）",
+            "type": "cortex-debug",
+            "request": "launch",
+            "preLaunchTask": "wait for J-Link Wi-Fi",
+            "servertype": "jlink",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/Debug/rocket_26.elf",
+            "liveWatch": {
+                "enabled": true,
+                "samplesPerSecond": 4
+            },
+            "device": "STM32F411CE",
+            "interface": "swd",
+            "ipAddress": "10.111.98.150",
+            "serverpath": "C:/Users/jiaha/AppData/Local/SEGGER/JLink_V838_portable/JLinkGDBServerCL.exe",
+            "serverArgs": ["-speed", "100"]
+        },
+        {
+            "name": "J-Link Wi-Fi 单纯调试（V8.38，已验证）",
             "type": "cortex-debug",
             "request": "attach",
             "preLaunchTask": "wait for J-Link Wi-Fi",
@@ -56,9 +74,43 @@
             },
             "device": "STM32F411CE",
             "interface": "swd",
-            "ipAddress": "10.111.97.77",
+            "ipAddress": "10.111.98.150",
             "serverpath": "C:/Users/jiaha/AppData/Local/SEGGER/JLink_V838_portable/JLinkGDBServerCL.exe",
             "serverArgs": ["-speed", "100"]
+        },
+        {
+            "name": "J-Link USB + SystemView 实时追踪",
+            "type": "cortex-debug",
+            "request": "launch",
+            "servertype": "jlink",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/Debug/rocket_26.elf",
+            "liveWatch": {
+                "enabled": false
+            },
+            "device": "STM32F411CE",
+            "interface": "swd",
+            "serialNumber": "941000024",
+            "serverpath": "C:/Users/jiaha/AppData/Local/SEGGER/JLink_V838_portable/JLinkGDBServerCL.exe",
+            "serverArgs": ["-speed", "4000", "-vd"],
+            "breakAfterReset": true
+        },
+        {
+            "name": "J-Link Wi-Fi + SystemView 实时追踪",
+            "type": "cortex-debug",
+            "request": "attach",
+            "preLaunchTask": "wait for J-Link Wi-Fi",
+            "servertype": "jlink",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/Debug/rocket_26.elf",
+            "liveWatch": {
+                "enabled": false
+            },
+            "device": "STM32F411CE",
+            "interface": "swd",
+            "ipAddress": "10.111.98.150",
+            "serverpath": "C:/Users/jiaha/AppData/Local/SEGGER/JLink_V838_portable/JLinkGDBServerCL.exe",
+            "serverArgs": ["-speed", "4000"]
         }
     ]
 }

@@ -70,7 +70,7 @@ const osThreadAttr_t GNSS_attributes = {
   .cb_size = sizeof(GNSSControlBlock),
   .stack_mem = &GNSSBuffer[0],
   .stack_size = sizeof(GNSSBuffer),
-  .priority = (osPriority_t) osPriorityLow,
+  .priority = (osPriority_t) osPriorityAboveNormal,
 };
 /* Definitions for IMU */
 osThreadId_t IMUHandle;

@@ -2,6 +2,7 @@
 #include "drv_time.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include <cstdint>
 #include <cstring>
 #include <stdio.h>
 
@@ -226,6 +227,8 @@ void NEOM9N_UART::Init(){
     m_memoryState = FREE;
 }
 
+static uint32_t LoadedTimes = 0;
+
 void NEOM9N_UART::handleGNSSMessageLoop(){
     if(m_memoryState == LOADED){
         m_memoryState = BUSY;
@@ -234,18 +237,33 @@ void NEOM9N_UART::handleGNSSMessageLoop(){
     m_memoryState = FREE;
 }
 
-void NEOM9N_UART::receiveGNSSMessageFromUART(uint8_t *pRxData, uint16_t rxDataLength){
-    if(m_memoryState!= BUSY){
+void NEOM9N_UART::receiveGNSSMessageFromUART(uint8_t *pRxData,
+                                             uint16_t rxDataLength) {
+    if (pRxData == nullptr) return;
+    if (rxDataLength == 0U) return;
     if (rxDataLength > sizeof(m_rxBuffer)) return;
+    if (m_memoryState != FREE) return;
+
     m_rxTimestampCycles = DWT_GetTimestamp();
     memcpy(m_rxBuffer, pRxData, rxDataLength);
     m_para_size = rxDataLength;
     m_memoryState = LOADED;
-    }
-    else{
-        return;
-    }
 }
+
+// void NEOM9N_UART::receiveGNSSMessageFromUART(uint8_t *pRxData, uint16_t rxDataLength){
+//     if(m_memoryState != BUSY && m_memoryState != LOADED){
+//         if (rxDataLength > sizeof(m_rxBuffer)) return;
+//         m_rxTimestampCycles = DWT_GetTimestamp();
+//         memcpy(m_rxBuffer, pRxData, rxDataLength);
+//         m_para_size = rxDataLength;
+//         LoadedTimes += 1;
+//         m_memoryState = LOADED;
+//     }
+//     else{
+//         return;
+//     }
+// }
+
 bool NEOM9N_UART::isHasNewData(){
     if(m_memoryState == LOADED){
         return true;

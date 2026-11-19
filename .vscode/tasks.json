@@ -47,7 +47,7 @@
                 "-File",
                 "${workspaceFolder}/.vscode/wait-jlink-wifi.ps1",
                 "-Address",
-                "10.111.97.77",
+                "10.111.98.150",
                 "-Port",
                 "19020",
                 "-TimeoutSeconds",
