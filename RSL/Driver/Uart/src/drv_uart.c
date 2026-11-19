@@ -58,20 +58,47 @@ static UART_Controller *get_uart_controller(UART_HandleTypeDef *huart){
     return NULL;
 }
 
+/**
+ * @brief 启动UART空闲线DMA接收，并关闭DMA半传输中断
+ * @param uart_obj UART控制器对象
+ * @return HAL_OK表示启动成功，其他值表示参数无效或DMA启动失败
+ */
+static HAL_StatusTypeDef start_uart_receive_to_idle_dma(UART_Controller *uart_obj){
+    if (uart_obj == NULL ||
+        uart_obj->huart == NULL ||
+        uart_obj->huart->hdmarx == NULL ||
+        uart_obj->rxDataLimit == 0U) {
+        return HAL_ERROR;
+    }
+
+    HAL_StatusTypeDef result = HAL_UARTEx_ReceiveToIdle_DMA(
+        uart_obj->huart,
+        uart_obj->rxBuffer,
+        uart_obj->rxDataLimit
+    );
+
+    // 关闭HT中断(中间中断)
+    if (result == HAL_OK) {
+        __HAL_DMA_DISABLE_IT(uart_obj->huart->hdmarx, DMA_IT_HT);
+    }
+
+    return result;
+}
+
 void UART_Init(UART_HandleTypeDef *huart, UART_Call_Back rxCallBackFunction, uint16_t rxDataLimit){
     UART_Controller *uart_obj = get_uart_controller(huart);
     if (uart_obj != NULL){
         uart_obj->huart = huart;
         uart_obj->rxCallBackFunction = rxCallBackFunction;
         uart_obj->rxDataLimit = rxDataLimit;
-        HAL_UARTEx_ReceiveToIdle_DMA(huart,uart_obj->rxBuffer,rxDataLimit);
+        start_uart_receive_to_idle_dma(uart_obj);
     }
 }
 
 void UART_reinit(UART_HandleTypeDef *huart){
     UART_Controller *uart_obj = get_uart_controller(huart);
     if(uart_obj != NULL){
-        HAL_UARTEx_ReceiveToIdle_DMA(huart,uart_obj->rxBuffer,uart_obj->rxDataLimit);
+        start_uart_receive_to_idle_dma(uart_obj);
     }
 }
 
@@ -92,7 +119,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
         if (uart_obj->rxCallBackFunction != NULL) {
             uart_obj->rxCallBackFunction(uart_obj->rxBuffer, Size);
         }
-        HAL_UARTEx_ReceiveToIdle_DMA(huart, uart_obj->rxBuffer, uart_obj->rxDataLimit);
+        start_uart_receive_to_idle_dma(uart_obj);
     }
 }
 
@@ -105,7 +132,7 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
     UART_Controller *uart_obj = get_uart_controller(huart);
     if (uart_obj != NULL) {
-        HAL_UARTEx_ReceiveToIdle_DMA(huart, uart_obj->rxBuffer, uart_obj->rxDataLimit);
+        start_uart_receive_to_idle_dma(uart_obj);
         if (uart_obj->rxCallBackFunction != NULL) {
             uart_obj->rxCallBackFunction(NULL, 0);
         }
